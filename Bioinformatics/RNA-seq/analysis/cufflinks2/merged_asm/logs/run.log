@@ -1,0 +1,11 @@
+/home/cv/bin/cuffmerge -g ../../data/preprocessing_fastp/genes.gtf -s ../../data/preprocessing_fastp/genome.fa -p 8 assemblies2.txt
+gtf_to_sam -F C1_R1_SRR5272674_clout/transcripts.gtf ./merged_asm/tmp/gtf2sam_fileSd3U9N
+gtf_to_sam -F C1_R2_SRR5272675_clout/transcripts.gtf ./merged_asm/tmp/gtf2sam_filejLHPjE
+gtf_to_sam -F C1_R3_SRR5272676_clout/transcripts.gtf ./merged_asm/tmp/gtf2sam_fileu3xZwy
+gtf_to_sam -F C2_R1_SRR5272677_clout/transcripts.gtf ./merged_asm/tmp/gtf2sam_file3r4m8w
+gtf_to_sam -F C2_R2_SRR5272678_clout/transcripts.gtf ./merged_asm/tmp/gtf2sam_fileEZ1OcA
+gtf_to_sam -F C2_R3_SRR5272679_clout/transcripts.gtf ./merged_asm/tmp/gtf2sam_filedfcCAH
+sort -k 3,3 -k 4,4n --temporary-directory=./merged_asm//tmp/ ./merged_asm/tmp/gtf2sam_fileSd3U9N ./merged_asm/tmp/gtf2sam_filejLHPjE ./merged_asm/tmp/gtf2sam_fileu3xZwy ./merged_asm/tmp/gtf2sam_file3r4m8w ./merged_asm/tmp/gtf2sam_fileEZ1OcA ./merged_asm/tmp/gtf2sam_filedfcCAH > ./merged_asm/tmp/mergeSam_fileexHs8S
+cufflinks -o ./merged_asm/ -F 0.05 -g ../../data/preprocessing_fastp/genes.gtf -q --overhang-tolerance 200 --library-type=transfrags -A 0.0 --min-frags-per-transfrag 0 --no-5-extend -p 8 ./merged_asm/tmp/mergeSam_fileexHs8S
+cuffcompare -o tmp_meta_asm -C -G  -r ../../data/preprocessing_fastp/genes.gtf  -s ../../data/preprocessing_fastp/genome.fa ./merged_asm//transcripts.gtf
+cuffcompare -o tmp_meta_asm -C -G  -r ../../data/preprocessing_fastp/genes.gtf  -s ../../data/preprocessing_fastp/genome.fa ./merged_asm//merged.gtf

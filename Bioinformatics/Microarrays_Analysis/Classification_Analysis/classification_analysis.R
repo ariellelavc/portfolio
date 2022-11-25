@@ -1,0 +1,696 @@
+#' ---
+#' title: "Classification Analysis"
+#' author: "Lavinia Carabet"
+#' output: 
+#'   pdf_document: default
+#'   html_document: default
+#' ---
+#' 
+## ----setup, include=FALSE--------------------------------------------------------------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+#' 
+#' ## Classification Analysis
+#' 
+#' Used to identify which population a particular observation comes from
+#' 
+#' ## Discriminant Analysis
+#' 
+#' Multivariate technique concerned with separating distinct groups into different classes 
+#' and allocating new observations to the previously identified groups
+#' 
+#' Supervised method - the training of the model is optimized by providing class membership information
+#' 
+#' Generative classifier
+#' 
+#' Load GEO lung cancer data set
+## --------------------------------------------------------------------------------------------------------------------------------
+dat <- read.table('./GEOLungCancer.txt', header=T, row.names=1)
+colnames(dat)
+dim(dat)
+
+#' 
+#' Prepare data matrix to include class membership
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+library(MASS)
+clas <- factor(c(rep('Adeno',10), rep('SCLC',9), rep('Normal',5)))
+clas
+length(clas)
+dat <- data.frame(clas,t(dat))
+dim(dat)
+dat[, 1:5]
+
+#' 
+#' Create training and test sets
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+#training set - first 6 Adeno (adenocarcinoma), first 7 SCLC (small cell lung cancer), 
+#               and first 3 Normal samples
+training.set <- dat[c(paste('Adeno',1:6,sep=''), 
+                      paste('SCLC',1:7,sep=''), 
+                      paste('Normal',1:3,sep='')),]
+# or
+#training.set <- dat[c(1:6,11:17,20:22),]
+dim(training.set)
+
+#first 2 genes training set
+training.set[,2:3]
+
+#test set - remaining samples
+test.set <- dat[!row.names(dat) %in% row.names(training.set),]
+#or
+#test.set <-dat[setdiff(row.names(dat), row.names(training.set)),]
+#or
+#test.set <- dat[c(-(1:6),-(11:17),-(20:22)),]
+dim(test.set)
+
+#first 2 genes test set
+test.set[,2:3]
+
+#save sample class test set
+sample.class <- test.set$clas
+#or 
+#sample.class <- test.set[,1]
+sample.class
+
+#remove first column (sample class) test set
+test.set <- test.set[,-1]
+dim(test.set)
+
+test.set[,1:2]
+
+#' 
+#' Run a classifier to see if we can predict the lung cancer types and
+#' discriminate them from both each other and the normal samples 
+#' 
+#' Train the model using `linear discriminant analysis (LDA)` method on the training set, and then
+#' predict sample classes and assess the model accuracy using the test set
+#' 
+#' LDA aims to find the linear combinations of the features/original explanatory variables (genes) that
+#' maximize the separation between groups
+#' 
+#' **Fit** the model using `lda` function in MASS package
+#' 
+#' Use only the first 2 genes as discriminators
+## --------------------------------------------------------------------------------------------------------------------------------
+clas.train <- training.set$clas
+
+# the lda model
+lda.model <- lda(formula=clas.train~., data=training.set[,2:3])
+#or
+#lda.model <- lda(clas.train~X1007_s_at+X1053_at, training.set[,2:3])
+#or
+#lda.model <- lda(training.set[,2:3], clas.train)
+lda.model
+
+#' 
+#' The `coefficients of linear discriminants` that transform observations (samples) to discriminant functions (LD1, LD2)
+#' are contained in the `scaling` component of the lda object
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+lda.model$scaling
+
+# the first discriminant function (LD1) is a linear combination of the variables (X1007_s_at 
+# and X1053_at) with LD1 coefficients
+lda.model$scaling[1,1] * training.set[,2] + lda.model$scaling[2,1] * training.set[,3] 
+
+ #the second discriminant function
+lda.model$scaling[1,2] * training.set[,2] + lda.model$scaling[2,2] * training.set[,3]
+
+#' 
+#' The `proportion of trace` is the proportion of between-class variance that is explained by successive discriminant functions 
+#' calculated from the `svd' component of the lda object 
+#' 
+#' `svd` values are the singular values which give the ratio of the
+#' between- and within-group standard deviations of the linear discriminant variables
+#' 
+#' The singular values are analogous to the eigenvalues of PCA, except that while PCA maximizes the variance of a component, 
+#' LDA instead maximizes the separability (defined by the between and within-group standard deviation of a discriminator)
+#' 
+#' 97.2% of the between-class variance is explained by the first linear discriminant function (LD1)
+## --------------------------------------------------------------------------------------------------------------------------------
+# svd values
+lda.model$svd
+
+#proportion of trace
+round(lda.model$svd^2 / sum(lda.model$svd^2),4)
+
+#' 
+#' **Predict** sample classes for the test (hold-out) set using `predict` function applied to the LDA model
+#' using the first two variables the model was trained on
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+lda.prediction <- predict(lda.model,test.set[,1:2])
+lda.prediction
+
+#' 
+#' `lda.prediction$class` - the predicted class based on maximum posterior probability (MAP)
+#' `lda.prediction$posterior` - posterior probabilities for the classes
+#' `lda.prediction$x` - LDA test scores (the transformed values in LDA space) for all observations
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+cbind(round(lda.prediction$posterior, 4), class=lda.prediction$class)
+
+#' 
+#' **Confusion matrix** (prediction error) 
+#' 
+#' How many total samples were misclassified?
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+dat.pred <- lda.prediction$class
+conf.matrix <- table(dat.pred, sample.class)
+conf.matrix
+
+#' So, 3 Adenos were wrongly predicted as SCLC, 1 SCLC was wrongly predicted as Adeno and 1 Normal was wrongly predicted as Adeno
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+# add up correct classifications and incorrect ones
+sum(sample.class=="Adeno")		# total number of Adeno -> 4
+sum(dat.pred[sample.class=="Adeno"]=="Adeno")	# number of correct Adeno classifications -> 1
+sum(dat.pred[sample.class=="Adeno"]=="SCLC")	# number of Adeno misclassified for SCLC -> 3
+sum(dat.pred[sample.class=="Adeno"]=="Normal")	# number of Adeno misclassified for Normal -> 0
+
+sum(sample.class=="SCLC")		# total number of SCLC -> 2
+sum(dat.pred[sample.class=="SCLC"]=="SCLC")	# number of correct SCLC classifications -> 1
+sum(dat.pred[sample.class=="SCLC"]=="Adeno")	# number of SCLC misclassified for Adeno -> 1
+sum(dat.pred[sample.class=="SCLC"]=="Normal")	# number of SCLC misclassified for Normal -> 0
+
+sum(sample.class=="Normal")		# total number of Normal -> 2
+sum(dat.pred[sample.class=="Normal"]=="Normal")	# number of correct Normal classifications -> 1
+sum(dat.pred[sample.class=="Normal"]=="Adeno")	# number of Normal misclassified for Adeno -> 1
+sum(dat.pred[sample.class=="Normal"]=="SCLC")	# number of Normal misclassified for SCLC -> 0
+
+#' 
+#' Misclassification rate
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+err = (length(sample.class) - sum(diag(conf.matrix)))/length(sample.class)
+err
+
+#' 
+#' **Plot** the first two discriminant functions in the lda.prediction$x versus each other
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+col <- as.numeric(lda.prediction$class) +1
+plot(lda.prediction$x, col = col, 
+     xlab='First Linear Discriminant Function',
+     ylab='Second Linear Discriminant Function',
+     main='Discriminant Analysis plot of GEO lung cancer data', 
+     cex=2, pch =19, xlim=c(-3,3), ylim = c(-2.0, 2.5))
+legend(min(range(lda.prediction$x[,1]))-0.5,max(range(lda.prediction$x[,2])),
+       levels(lda.prediction$class),col=sort(unique(col)),pch=19,cex=1)
+text(lda.prediction$x,col= col,cex=1, labels= lda.prediction$class, pos=3)
+text(lda.prediction$x,col= 'dark gray',cex=0.7, labels= paste(sample.class, ' - actual'), pos=1)
+
+#' 
+#' **Same LDA analysis** but this time **using all of the features/genes** in the data matrix as opposed to the first two 
+#' 
+## ---- message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------
+# fit model
+lda.model <- lda(clas.train~., training.set[,2:ncol(training.set)])
+#proportion of trace
+round(lda.model$svd^2 / sum(lda.model$svd^2),4)
+
+# predict on the entire test set
+lda.prediction <- predict(lda.model,test.set)
+lda.prediction
+#confusion matrix
+dat.pred <- lda.prediction$class
+table(dat.pred, sample.class)
+
+#' 
+#' No samples are misclassified
+#' 
+#' **Plot** the first two discriminant functions in the lda.prediction$x versus each other (scatterplot)
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+col <- as.numeric(lda.prediction$class) +1
+plot(lda.prediction$x, col = col, 
+     xlab='First Linear Discriminant Function',
+     ylab='Second Linear Discriminant Function',
+     main='Discriminant Analysis plot of GEO lung cancer data',
+     cex=2, pch =19, xlim=c(-3,3), ylim = c(-2.5, 2.5))
+legend(min(range(lda.prediction$x[,1]))-1.5, max(range(lda.prediction$x[,2]) +1 ),
+       levels(lda.prediction$class),col=sort(unique(col)),pch=19,cex=1)
+text(lda.prediction$x,col= col,cex=1, labels= lda.prediction$class, pos=3)
+text(lda.prediction$x,col= 'dark gray',cex=0.7, labels= paste(sample.class, ' - actual'), pos=1)
+
+#' 
+#' **Stacked histogram** of the LDA scores of the discriminant functions for each group 
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+ldahist(data = lda.prediction$x[,1], g=lda.prediction$class)
+ldahist(data = lda.prediction$x[,2], g=lda.prediction$class)
+
+#' 
+#' ## Support Vector Machines (SVM)
+#' 
+#' Supervised discriminant classifier focused on modeling of the optimal decision boundary between two classes  
+#' 
+#' Discriminates by finding the maximal margin separating the classes 
+#' (maximum separation parallel hyperplanes for each class) 
+#' 
+#' Linear SVM classifier partitions data into classes in a high-dimensional feature space that is nonlinearly related to the input space
+#' 
+#' Nonlinear SVM partitioning projects the data into a feature space using a kernel function
+#' 
+## ---- message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("colonCA")
+
+#' 
+#' Load Alon colon cancer dataset
+#' 
+## ---- message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------
+library(colonCA)
+data(colonCA)
+d <- exprs(colonCA)
+clas <- factor(colonCA$class)
+print('Total Tumor samples')
+sum(clas == 't')
+print('Total Normal samples')
+sum(clas == 'n')
+#clas <- data.frame(as.numeric(colonCA$class))
+head(clas, 5)
+
+#' PCA on colon cancer data and use second and third principal components for classification analysis
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+dat <- scale(t(d),center=T,scale=T)
+dat.pca <- prcomp(dat)
+dat.loadings <- dat.pca$x[,2:3]
+dat.loadings
+
+# percent variability of the principal components
+print("Percent variability of the principal components")
+dat.pca.var <- round(dat.pca$sdev^2 / sum(dat.pca$sdev^2)*100,2)
+dat.pca.var
+
+# scree plot for the PCA
+plot(c(1:length(dat.pca.var)),dat.pca.var,type='b',xlab='# components',ylab='% variance',
+     main='Scree plot of Alon colon cancer data', col='orange')
+
+#' 
+#' Fit a  kernel SVM of type C classification
+#' 
+#' C      - tunable regularization parameter for the cost of constraints violation (penalty for misclassification)
+#' 
+#' kernel - Gaussian Radial Basis Function (RBF) kernel function used in training and predicting 
+#'          (exponetial function of the negative of the ratio between the squared Euclidean distance 
+#'          between two feature vectors and 2*sigma^2)
+#' 
+#' sigma - tunable regularization hyperparameter representing the inverse width of the Gaussian RBF kernel
+#' 
+#' gamma - inverse of 2*sigma^2
+#' 
+#' Increasing gamma, C or both, decreases regularization of an SVM classifier trained with Gaussian RBF that underfits (too much regularization) the (training) data
+#' Reciprocally, when the model overfits (not enough regularization) increase regularization by decreasing gamma, C or both.
+#' 
+## ---- message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------
+#install.packages('kernlab')
+
+library(kernlab)
+
+svp <- ksvm(dat.loadings,clas,type="C-svc", kernel='rbfdot', kpar='automatic', C=1, fit=T)
+svp
+
+#' 
+#' Get fitted values
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+fit <- fitted(svp)
+fit
+clas
+
+#' 
+#' Error rates
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+er1 <- sum(fit[clas=='n']=='t')		# number of incorrect normal classifications
+er1
+er2 <- sum(fit[clas=='t']=='n')   # number of incorrect tumor classifications
+er2
+
+table(clas, fit)
+
+#' 
+#' Plot the kernel SVM binary classification
+#' 
+#' The plot function for `ksvm` objects displays a contour plot of the decision values
+#' with the corresponding support vectors highlighted (filled shapes)
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+
+plot(svp, data=dat.loadings)
+
+
+#' 
+#' Find optimal cost parameter and gamma hyperparameter for classification using `tune` function
+#' 
+#' `tune` - generic function that tunes hyperparameters of statistical methods using a grid search over supplied parameter ranges
+#' 
+## ---- message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------
+## tune `svm' for classification with RBF-kernel (default in svm),
+## using default 10-fold cross validation ( 10 partitions for cross-validation)
+
+#install.packages('e1071')
+
+library(e1071)
+
+# show best model
+grid.search.tune.svm <- tune(svm, dat.loadings, clas, nrepeat=1,
+                             ranges = list(gamma = c(0.1, 0.5, 1, 2, 3, 4), 
+                                           cost = c(0.1, 0.5, 1, 5, 10)),
+                             tunecontrol = tune.control(sampling = "cross",cross=10))
+grid.search.tune.svm
+
+# show best model
+grid.search.tune.svm$best.model
+
+#alternatively tune.svm function can be used
+
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+#summary(grid.search.tune.svm)
+plot(grid.search.tune.svm)
+
+#' 
+#' ## Classification and Regression Trees (CART)
+#' 
+#' A method of using independent variables to predict either categorical (classification) 
+#' or continuous (regression) dependent variables
+#' 
+#' Using a series of binary decisions (if-then commands), the predictor variables are utilized to partition a classification
+#' for each dependent variable at various levels of a hierarchy
+#' 
+#' The nodes on each level of the tree give the criteria used for each decision
+#' 
+#' The consistency of classification at a particular node (the accuracy of splitting tree) is measured
+#' by the Gini Impurity Index which:
+#' 
+#'   - calculates the amount of probability of a specific feature (predictor variable) classified incorrectly
+#'     when selected randomly
+#'   - ranges from 0 to 1, with 0 - pure classification (one class exists); 1 - random distribution across classes
+#' 
+#' 
+#' 
+#' ## Binary decision tree classification
+#' 
+#' Use `tree` function to fit a classification tree
+#' 
+#' The tree is grown by binary partitioning using the response in the specified formula 
+#' and choosing splits from the terms of the right hand side
+#' The split which maximizes the reduction in impurity is chosen in each iteration
+#' 
+#' Use first 10 principal components from PCA on Alon colon cancer dataset as predictor variables
+#' 
+## ---- message=FALSE, warning=FALSE-----------------------------------------------------------------------------------------------
+#install.packages("tree")
+
+library(tree)
+
+dat.loadings <- dat.pca$x[,1:10]
+dat <- as.data.frame(dat.loadings)
+dat.c <- data.frame(clas,dat)	# bind class labels to dataframe
+head(dat.c, 5)
+
+dat.train.tree<-tree(clas~.,data=dat.c)
+summary(dat.train.tree)	# classification results
+
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+plot(dat.train.tree)
+text(dat.train.tree)
+
+# PC4 is the primary bifurcation at values < and > -3.4988
+# PC4 and PC7 are the secondary bifurcations at values < and > -10.0324 and -2.13387, respectively
+# and so on
+
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+dat.train.tree
+
+#' 
+#' ## k-nearest neighbors (KNN)
+#' 
+#' Classifies a point (gene/sample) by calculating the distances between all points and 
+#' assigns the point to the class that is most common among its k-nearest neighbors
+#' 
+#' Spatial relationships between points in n-dimensional space determine class membership
+#' 
+#' The larger k that is specified, the larger the error rate
+#' 
+#' Unsupervised classification method - Class membership is utilized only to count votes from neighboring points, 
+#'                                                          not to optimize the classifier
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+dat.k <- exprs(colonCA)     # matrix of expression values
+clas <- as.character(colonCA$class)
+
+#' 
+#' Run KNN classifier with increasing number of k
+#' 
+#' knn(train, test, cl, k = 1, l = 0, prob = FALSE, use.all = TRUE)
+#' 
+#' train, test - matrices or data frames of the train set, test set cases
+#' cl - factor of true classifications of training set
+#' k - number of neighbors considered
+#' prob - if TRUE, the proportion of the votes for the winning class are returned as `prob` attribute
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+library(class)
+
+error.list <- NULL
+
+for (i in 1:10) {
+	dat.knn <- knn(t(dat.k),t(dat.k),clas,k=i,prob=T)
+	
+	# error rates
+	er1 <- sum(dat.knn[clas=="n"]=="t")		# number of incorrect normal classifications
+	er2 <- sum(dat.knn[clas=="t"]=="n")		# number of incorrect tumor classifications
+	er.total <- sum(er1,er2)/ncol(dat.k)	
+	er.total <- round(er.total*100,1)
+	
+	# store in list
+	error.list <- c(error.list,er.total)
+}
+
+#' 
+#' Plot classification error vs. k in KNN classifier
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+plot(c(1:10),error.list,type="b",col="blue",xlab="number of k",ylab="% error in classification",
+     main="KNN-Error vs. # of k")
+grid(col="grey")
+
+#' 
+#' ## Receiver operator curves (ROC) 
+#' 
+#' Used to characterize the sensitivity/specificity tradeoffs for a binary classifier
+#' 
+#' Run KNN classifier with increasing number of k with 10 genes for ROC curve
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+tp.list <- NULL
+fp.list <- NULL
+k.list <- c(1:35)
+
+for (i in 2:length(k.list)) {
+	dat.knn <- knn(t(dat.k[1:10,]), t(dat.k[1:10,]), clas, k=k.list[i], prob=T)
+	
+	# error rates
+	# true positive rate (TPR/sensitivity)
+	er1 <- sum(dat.knn[clas=="t"]=="t")/sum(clas=="t")*100	
+	# false positive rate (FPR/1-specificity) 
+	# specificity is true negative rate (TNR)
+	er2 <- sum(dat.knn[clas=="n"]=="t")/sum(clas=="n")*100	
+	tp.list <- c(tp.list,er1)
+	fp.list <- c(fp.list,er2)
+}
+
+#' 
+#' Plot ROC curve of TPR (sensitivity) vs FPR (1-specificity)
+#' 
+#' Sensitivity: probability of a positive test results, given the presence of the condition (true positive rate)
+#' 
+#' Specificity: probability of a negative test result given the absence of the condition (true negative rate)
+#' 
+#' Each point on the plot represents a model accuracy rate
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+plot(c(1,100),c(1,100),type="b",xlab="False-positive rate (%)",ylab="True-positive rate (%)",
+     main="ROC curve")
+points(fp.list,tp.list,cex=1.0,col="blue",pch=16)
+
+#' 
+#' ## Artificial Neural Networks (ANN)
+#' 
+#' An ANN, initially inspired by neural networks in the brain, consists of 
+#' layers of interconnected compute units (neurons).
+#' 
+#' The network receives data in an input layer, 
+#' the data is then transformed in a non-linear way through a hidden layer, before
+#' final outputs are computed in the output layer.
+#' 
+#' Neurons in the hidden and output layers are connected to all neurons in previous layers, and 
+#' are called fully connected or dense layers.
+#' 
+#' Each connection between neurons carries a weight.
+#' 
+#' Each neuron computes a weighted sum of its inputs and
+#' applies a non-linear activation function to calculate its output,
+#' using also a bias term (threshold) as a parameter.
+#' 
+#' The weights between neurons are free parameters that capture the model's representation of the data,
+#' are learned from input observations and adjusted during training.
+#' 
+#' Learning minimizes a loss (cost/error/objective) function that measures the fit between the predictions 
+#' of the model parameterized by the connection weights and the actual observations.
+#' 
+#' So, goal of ANN model training (learning) is to find the parameters - the weights - that minimize the loss 
+#' which measures the fit of the model output to the true label of an observation.
+#' 
+#' Most ANN are trained using maximum (conditional) likelihood estimation, so 
+#' the most common loss function for classification is the negative log-likelihood, that is 
+#' between the empirical distribution defined by the training set and the probability distribution defined by the model
+#' 
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+dat <- exprs(colonCA)    
+clas <- factor(colonCA$class)
+
+# define training samples by random
+samp <- sample(c(1:ncol(dat)),30,replace=FALSE)
+samp
+
+dat.n <- data.frame(dat.loadings,clas)
+dat.n
+
+#' 
+#' ## Fit a feed-forward neural network with `nnet` function
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+library(nnet)
+
+dat.nn <- nnet(clas ~ ., data = dat.n, subset = samp, size=4, rang=0.1, decay=5e-4, maxit=200)
+
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+dat.nn
+
+#' 
+#' In nnet:
+#' data -> data frame from which variables specified in formula (clas ~.) are taken and used as predictors
+#'         10 variables used in the input layer (10 input neurons)
+#'         clas column is the response variable to predict
+#' subset -> index vector specifying the cases used in the training sample
+#' size -> number of neurons in the hidden layer (=4) - free parameter
+#' rang -> initial random weights (on [-0.1, 0.1])
+#' activation function -> logistic sigmoid (outputs a value between 0 and 1,
+#'                                          the estimated probability that an observation belongs to a particular class)
+#' loss function -> entropy (maximum likelihood)
+#' optimization of loss -> BFGS algorithm - iterative second-order quasi-Newton method for nonlinear optimization 
+#'                                          fast converging to the minimum of the loss function
+#' rang -> initial random weights (on [-0.1, 0.1])
+#' decay -> parameter for weight decay regularization - added penalty to the loss function
+#'          that causes the weights to exponentially decay to zero during BFGS optimization
+#' maxit -> maximum number of BFGS iterations (free parameter)
+#' 
+#' The ANN has 10 inputs, 4 hidden neurons, and 1 output neuron, so it has
+#' `(10*4) + 4 + (4*1) + 1` =  49 weights
+#' 
+#' ## Confusion matrix
+#' 
+#' Evaluate accuracy of the ANN model on non-training (test) data
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+#cm <- table(dat.n$clas[-samp], predict(dat.nn, dat.n[-samp,], type = "class"))
+actual.class <- dat.n$clas[-samp]
+predicted.class <- predict(dat.nn, dat.n[-samp,], type = "class")
+cm <- table(actual.class, predicted.class)
+
+cat("\nConfusion matrix for the ANN model: \n\n")
+# each row in the confusion matrix represents an actual class
+# each column represents the predicted class
+# first row considers the negative class (n - Normal condition)
+# second row the positive class (t - Tumor condition)
+cm
+
+#cm.df <- as.data.frame(cm)
+#cm.df
+
+#' 
+#' The confusion matrix explained:
+#' 
+#' The diagonal: top left     - true negatives (TN): number of true normals (n - negative condition) classified as normal (n - negative)
+#'               bottom right - true positives (TP): number of true tumors (t - positive condition) clasiffied as tumor (t - positive)
+#' Off-diagonal: top right    - false positives (FP): number of true normals misclassified as tumors
+#'               bottom left  - false negatives (FN): number of true tumors misclassified as normal
+#'               
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+cm.expl <- matrix(c('TN', 'FN', 'FP', 'TP'), nrow=2, ncol=2)
+rownames(cm.expl) <- c('n', 't')
+colnames(cm.expl) <- c('n', 't')
+
+print.table(cbind(cm.expl, cm))
+
+#' 
+#' ## Performance metrics
+#'               
+#' **True positive rate/Recall/Sensitivity** - the fraction of positive instances correctly detected by the classifier = **TP/(TP+FN)**
+#'                                             (=posivitives correctly classified/total positives)
+#' 
+#' **False positive rate** - the fraction of negative instances incorrectly classified = **FP/(FP+TN)**
+#'                           (=negatives incorrectly classified/total negatives)
+#' 
+#' **True negative rate/Specificity** = **1-false positive rate** = **TN/(FP+TN)**
+#' 
+#' **Precision** - the fraction of positive predictions that are correct; accuracy of positive predictions = **TP/(TP+FP)**
+#'                 (=positives correctly predicted/total predicted positives)
+#' 
+#' **Accuracy** - the fraction of the number of correct predictions from the total number of predictions = **(TP+TN)/(TP+TN+FP+FN)**
+#'                (measure of model's performance across all classes)
+#' 
+#' **F1-measure** - harmonic mean of precision and recall = **2/(1/precision + 1/recall)** = **TP/(TP + (FN+FP)/2)**
+#'                  (high if both precision and recall are high)
+#' 
+## --------------------------------------------------------------------------------------------------------------------------------
+# True positive rate/Recall/Sensitivity
+tpr <- cm[-1,-1]/(cm[-1,-1] + cm[-1,1])
+tpr
+recall <- cm[-1,-1]/sum(cm[-1,])
+recall
+sensitivity <- cm[2,2]/sum(cm[2,])
+sensitivity
+
+# False positive rate
+fpr <-  cm[1,-1]/sum(cm[1,])
+fpr
+
+# True negative rate/Specificity
+tnr <- cm[1,1]/sum(cm[1,])
+tnr
+specificity <- 1 - fpr       # = tnr
+specificity
+
+# Precision
+precision <- cm[-1,-1]/sum(cm[,-1])
+precision
+
+#Accuracy
+accuracy <- sum(diag(cm))/sum(cm)
+accuracy
+
+# F1-measure
+f1.score <- 2/(1/precision + 1/recall)
+f1.score
+
+metrics <- as.data.frame(
+  round(cbind(sensitivity, specificity, accuracy, precision, recall, f1.score),3), 
+  col.names = c('Sensitivity', 'Specificity', 'Accuracy', 'Precision', 'Recall', 'F1 measure'))
+metrics
+

@@ -1,0 +1,5 @@
+param	value
+cmd_line	cuffdiff -o ../cuffdiff/diff_out -b ../../data/preprocessing_fastp/genome.fa -p 8 -L T,U -u ./merged_asm/merged.gtf ../tophat/T_SRR5272677_thout/accepted_hits.bam,../tophat/T_SRR5272678_thout/accepted_hits.bam,../tophat/T_SRR5272679_thout/accepted_hits.bam ../tophat/U_SRR5272674_thout/accepted_hits.bam,../tophat/U_SRR5272675_thout/accepted_hits.bam,../tophat/U_SRR5272676_thout/accepted_hits.bam 
+version	2.2.1
+SVN_revision	4237
+boost_version	104700

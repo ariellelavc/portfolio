@@ -1,0 +1,211 @@
+---
+title: "Copy number estimation and CNA detection in tumor samples from WGS HTS data using HMMCopy"
+author: "Lavinia Carabet"
+date: "11/19/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Setup the libraries and input data
+### Install libraries
+```{r, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("HMMcopy")
+```
+
+### Load libraries
+```{r, message=FALSE, warning=FALSE, results="hide"}
+options(stringsAsFactors = TRUE)
+library(HMMcopy)
+```
+## 2. Generating Copy Number Profiles
+
+### Load normal HTS copy number data
+```{r}
+rfile <- system.file("extdata", "normal.wig", package = "HMMcopy")
+gfile <- system.file("extdata", "gc.wig", package = "HMMcopy")
+mfile <- system.file("extdata", "map.wig", package = "HMMcopy")
+normal_reads <-  wigsToRangedData(rfile, gfile, mfile)
+normal_reads[1000:1010,]
+#dim(normal_reads)
+```
+
+### Correcting normal HTS copy number data
+```{r, warning=FALSE}
+normal_copy <-  correctReadcount(normal_reads)
+normal_copy[1000:1010,]
+```
+
+### Visualizing the effects of correction
+```{r}
+par(cex.main = 0.7, cex.lab =0.7, cex.axis =0.7, mar = c(4,4,2, 0.5))
+plotBias(normal_copy, pch =20, cex = 0.5)
+```
+
+### Visualizing corrected copy number profiles
+```{r, warning=FALSE}
+par(mar = c(4,4,2, 0))
+plotCorrection(normal_copy, pch = ".")
+```
+
+### Correcting and visualizing tumor copy number profiles
+```{r, warning=FALSE}
+tfile <- system.file("extdata","tumour.wig", package = "HMMcopy")
+tumor_copy <- correctReadcount(wigsToRangedData(tfile, gfile, mfile))
+par(mar = c(4,4,2, 0))
+plotCorrection(tumor_copy, pch = ".")
+```
+
+## 3. Segmentation and Classification of Copy Number Profiles
+```{r, warning=FALSE}
+tumor_segments <- HMMsegment(tumor_copy)
+```
+### Visualizing segments and classified states
+```{r}
+par(mfrow = c(2,1), cex.main = 0.5, cex.lab = 0.7, cex.axis =0.7, 
+    mar = c(4, 4,0,0),  mgp = c(1,0.5,0))
+plotSegments(tumor_copy, tumor_segments, pch=".", 
+             ylab = "Tumor Copy Number", xlab = "Chromosome Position")
+cols <- stateCols() #6 default state colors
+legend("topleft", c("HOMD", "HETD", "NEUT", "GAIN", "AMPL", "HLAMP"), 
+       fill = cols, horiz = TRUE, bty = "n", cex = 0.7)
+```
+
+### Improving segmentation performance
+```{r, warning=FALSE}
+default_param <- HMMsegment(tumor_copy, getparam = TRUE)
+default_param
+#6 states, 10 parameters matrix
+```
+
+### Reducing the number of segments a.k.a increasing the length of segments
+```{r, warning=FALSE}
+longseg_param <-  default_param
+longseg_param$e <-  0.9999999999999999
+longseg_param$strength <- 1e30
+longseg_segments <-  HMMsegment(tumor_copy, longseg_param)
+```
+### Visualizing segments and classified states to confirm decrease in segments as intended
+```{r}
+par(mfrow = c(2,1), cex.main = 0.5, cex.lab = 0.7, cex.axis =0.7, 
+    mar = c(4, 4,0,0),  mgp = c(1,0.5,0))
+plotSegments(tumor_copy, longseg_segments, pch=".", 
+             ylab = "Tumor Copy Number", xlab = "Chromosome Position")
+cols <- stateCols() #6 default state colors
+legend("topleft", c("HOMD", "HETD", "NEUT", "GAIN", "AMPL", "HLAMP"), 
+       fill = cols, horiz = TRUE, bty = "n", cex = 0.7)
+```
+
+### Adjusting copy number state ranges - correcting the incorrect median of each copy number state in the plot above
+### problem with mu parameter
+```{r}
+#output of segmentation process: matrix of the median of 6 states (rows) after each iteration (7) 
+#of the optimization algorithm (columns)
+longseg_segments$mus
+```
+### first column initial suggested mu
+```{r}
+longseg_param$mu
+```
+
+### last column actual values used during the segmentation process
+```{r}
+longseg_segments$mus[,7]
+```
+
+### Visualising the problem - Medians not running through middle of segments of many states
+
+```{r}
+par(mfrow = c(2,1), cex.main = 0.5, cex.lab = 0.7, cex.axis =0.7, 
+    mar = c(4, 4,0,0),  mgp = c(1,0.5,0))
+plotSegments(tumor_copy, longseg_segments, pch=".", 
+             ylab = "Tumor Copy Number", xlab = "Chromosome Position")
+for (i in 1:nrow(longseg_segments$mus)) {
+  abline(h=longseg_segments$mus[i, ncol(longseg_segments$mus)], col = cols[i], lwd =2, lty =3)
+}
+abline(v = 7.68e7, lwd = 2, lty = 3)
+abline(v = 8.02e7, lwd = 2, lty = 3)
+```
+
+### Update/Re-initialiaze mu param to solve the problem 
+
+```{r, warning=FALSE}
+newmu_param <- longseg_param
+newmu_param$mu <-  c(-0.5, -0.4,-0.15, 0.1,0.4, 0.7) # why these values? nothing has changed
+newmu_segments <- HMMsegment(tumor_copy, newmu_param)
+par(mfrow = c(2,1), cex.main = 0.5, cex.lab = 0.7, cex.axis =0.7, 
+    mar = c(4, 4,0,0),  mgp = c(1,0.5,0))
+plotSegments(tumor_copy, newmu_segments, pch=".", 
+             ylab = "Tumor Copy Number", xlab = "Chromosome Position")
+# for (i in 1:nrow(newmu_segments$mus)) {
+#   abline(h=newmu_segments$mus[i, ncol(newmu_segments$mus)], col = cols[i], lwd =2, lty =3)
+# }
+#  abline(v = 7.68e7, lwd = 2, lty = 3)
+#  abline(v = 8.02e7, lwd = 2, lty = 3)
+```
+
+
+### Understanding parameter convergence 
+```{r}
+newmu_segments$mus
+#newmu_param$mu <-  c(-0.5, -0.4,-0.15, 0.1,0.4, 0.7) #alg ignores these param values
+```
+### Understanding parameter convergence 
+```{r}
+longseg_param$mu
+```
+### Overriding parameter convergence 
+```{r, warning=FALSE}
+#solution disallow the alg from making large shifts to mu
+#achieved by setting the prior mean of n (i.e.m - optimal value of mu) to values identical to mu
+par(mfrow = c(2,1), cex.main = 0.5, cex.lab = 0.7, cex.axis =0.7, 
+    mar = c(4, 4,0,0),  mgp = c(1,0.5,0))
+newmu_param$m <- newmu_param$mu
+realmu_segments <- HMMsegment(tumor_copy, newmu_param)
+plotSegments(tumor_copy, realmu_segments, pch=".", 
+             ylab = "Tumor Copy Number", xlab = "Chromosome Position")
+# for (i in 1:nrow(realmu_segments$mus)) {
+#   abline(h=realmu_segments$mus[i, ncol(realmu_segments$mus)], col = cols[i], lwd =2, lty =3)
+# }
+#  abline(v = 7.68e7, lwd = 2, lty = 3)
+#  abline(v = 8.02e7, lwd = 2, lty = 3)
+cols <- stateCols() #6 default state colors
+legend("topleft", c("HOMD", "HETD", "NEUT", "GAIN", "AMPL", "HLAMP"), 
+       fill = cols, horiz = TRUE, bty = "n", cex = 0.7)
+```
+
+## 4. Matched Tumor-Normal Sample Correction
+### Normalizing tumor by normal copy number profiles
+```{r}
+somatic_copy <- tumor_copy
+#LOGARITHM IDENTITY: log(a) -log(b) == log(a/b)
+somatic_copy$copy <- tumor_copy$copy - normal_copy$copy
+```
+### Segmentation and visualization of somatic copy number aberration
+```{r, warning=FALSE}
+somatic_segments <- HMMsegment(somatic_copy, newmu_param) 
+par(mfrow = c(2,1), cex.main = 0.5, cex.lab = 0.7, cex.axis =0.7, 
+    mar = c(4, 4,0,0),  mgp = c(1,0.5,0))
+plotSegments(somatic_copy, somatic_segments, pch=".", 
+             ylab = "Tumor Copy Number", xlab = "Chromosome Position")
+```
+
+\pagebreak
+### Export somatic copy number aberration
+```{r}
+#somatic_copy
+somatic_segments$segs
+#str(somatic_segments)
+readr::write_delim(somatic_segments$segs,"somatic_segments_LAC.txt")
+```
+### Session info
+```{r}
+toLatex(sessionInfo())
+```

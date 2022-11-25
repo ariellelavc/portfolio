@@ -1,0 +1,562 @@
+#' ---
+#' title: 'Continuous HMM for profiling copy number alterations'
+#' subtitle: 'GENOME 541: Cancer Genomics - Probabilistic Methods for Profiling Copy Number Alterations from Sequencing Data (WGS)  University of Washington Summer 2020'
+#' author: "Lavinia Carabet"
+#' date: "8/28/2020"
+#' output:
+#'   pdf_document: default
+#'   html_document: default
+#' ---
+#' 
+#' Implementation of components of a copy number alteration (CNA) caller using a single-sample continuous Hidden Markov Model (HMM), a generative model in a Bayesian framework
+#' 
+#' HMMs - probabilistic graphical model used to predict a sequence of hidden (copy number) states from a set of observed variables (log2ratio normalized copy number data obtained from sequencing read coverage)
+#' 
+#' The input data `log2ratios_chr1.txt` contains a set of 411 genomic wwindows/bins in chr1 with normalized log2 ratios from a single-sample (patient)  
+#' 
+#' Learn the model parameters and infer the copy number states (genotypes) using Expectation-Maximization (EM) algorithm
+#' 
+#' Annotate the copy number status for each genomic bin
+#' 
+#' Predict the copy number alteration segments (for a chromosome) using Viterbi algorithm
+#' 
+## ----setup, include=FALSE-----------------------------------------------------------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+#' 
+#' # 0. Setup the libraries and input data
+#' ### 0.1 Install libraries
+## ---- eval=FALSE--------------------------------------------------------------------------------------------------------------
+## if (!requireNamespace("BiocManager", quietly = TRUE))
+##     install.packages("BiocManager")
+## 
+## BiocManager::install("HMMcopy")
+
+#' 
+#' ### 0.2 Load libraries
+## ---- message=FALSE, warning=FALSE, results="hide"----------------------------------------------------------------------------
+library(HMMcopy)
+library(tidyverse)
+
+#' 
+#' ### 0.3 Load the input data 
+#' Load the input data from `log2ratios_chr1.txt`. This file contains $T$ bins (1Mb) where each bin $t$ has a read count (`readCount`) and a corrected $\log_2$ ratio (`log2Ratio`). The column `log2Ratio` is the corrected copy number data, $x_{1:T}$ to use, calculated using sequencing read coverage and following a Gaussian (normal) distribution (continuous measurement). 
+## ----countfile, echo=TRUE-----------------------------------------------------------------------------------------------------
+LogRatios <- read.delim("log2ratios_chr1.txt", as.is = TRUE)
+x <- as.matrix(LogRatios$log2Ratio) # input data
+copyNumberStates <- c(1,2,3,4,5) 
+K <- length(copyNumberStates) # number of different copy number states
+
+#' Note: The 5 different copy number states (genotypes) correspond to: HOMD - homozygous deletion (0 copies); HEMD - hemizygous deletion (1 copy); NEUT - neutral (2 copies); GAIN (3 copies); and AMPL - amplification (4 or 5 copies)
+#' 
+#' ### 0.4. Initialize model parameters and hyperparameters.
+#' Initialize parameters and hyperparameters for copy number states, $\{1, 2, 3, 4, 5\}$
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+##### initial values for model parameters #####
+pi.init <- c(0.1, 0.6, 0.1, 0.1, 0.1) # initial setting for pi (initial state distribution)
+mu.init <- log2(c(copyNumberStates) / 2) # inital setting for Gaussian mean 
+var.init <- rep(var(x), times = K) # initial setting for Gaussian variance
+
+A.init <- matrix(0, K, K) # initial setting for matrix of transition probabilities
+for (i in 1:K) {
+  A.init[i, ] <- (1 - 0.99999) / (K - 1) # transition to different state
+  A.init[i, i] <- 0.99999  # self-transition probability
+}
+
+##### hyper-parameters for prior model #####
+deltaPi.hyper <- c(2, 6, 2, 2, 2) # hyperparameter for Dirichlet prior on pi parameter
+
+mMu.hyper <- mu.init # hyperparameter for Gaussian prior on mu parameter
+sMu.hyper <- var.init # hyperparameter for Gaussian variance on mu parameter
+
+# hyperparameters for Inverse Gamma prior on variance parameter
+betaVar.hyper <- c(1,1,1,1,1) 
+alphaVar.hyper <- betaVar.hyper/ (apply(x, 2, var, na.rm = TRUE) / sqrt(K)) 
+
+# hyperparameters for Dirichlet prior on the transition matrix
+dirCounts <- 100000
+deltaA.hyper <- A.init * dirCounts
+
+#' 
+#' 
+#' 
+#' \pagebreak
+#' # 1. Compute the Gaussian Emission Probabilities
+#'   
+#' #### 1.1. Define a function to compute the likelihood probabilities.
+#' 
+#' The emission model is a continuous HMM modeled using a $k$-component mixture of Gaussians
+#' 
+#' The function, `compute.gauss.lik`, computes the emission probabilities: a sequence of observation likelihoods, each expressing the probability of an observation $x_t$ being generated from a particular state $k$.
+#' 
+#' `compute.gauss.lik` computes the Gaussian probability for each genomic bin $t$ and (conditional for) each copy number state $k\in\{1,2,3,4,5\}$.
+#' 
+#' $$p(x_t|Z_t = k, \mu_{1:K}, \sigma^2_{1:K}) = \mathcal{N}(x_t|\mu_k, \sigma^2)$$
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+compute.gauss.lik <- function(x, mu.prm, var.prm){
+  L <-  matrix(NA, nrow = length(x), ncol = K)
+  for (i in 1:K) {
+    L[,i] <- dnorm(x, mean = mu.prm[i], sd = sqrt(var.prm[i]))
+  }
+  return(t(L))
+}
+
+#' 
+#' 
+#' #### 1.2. Compute the Gaussian likelihood 
+#' 
+#' Compute the Gaussian probabilities for $x_{1:T}$ of the first EM iteration using the initial Gaussian parameters set, `mu.init` and `var.init`.
+#' 
+#' Print the first 3 columns (i.e. for data points $x_{1,\ldots,3}$ and all states $k$) of probabiliities for the observed likelihood. 
+## -----------------------------------------------------------------------------------------------------------------------------
+obs.lik <- compute.gauss.lik(x, mu.init, var.init)
+dim(obs.lik)
+obs.lik[, 1:3]
+
+#' 
+#' 
+#' 
+#' 
+#' \pagebreak
+#' # 2. Implement functions for EM algorithm
+#' 
+#' ### 2.1. Compute the responsibilities in the E-Step (inference using the Forwards-Backwards algorithm (Baum-Welch))
+#' 
+#' Use compiled C code from HMMcopy to compute the $forwards \ backwards$ probabilities (responsibilities). 
+#' 
+#' The `forward_backward` function computes the probability $\gamma(Z_t)$ of each bin $t$ having every possible genotype $\forall k\in \{1,2,3,4,5\}$.
+#' 
+#' The probabilities are computed for each genomic window $t$ and each genotype $k$ and returns a matrix with dimensions
+#' $K × T$.
+#' 
+#' The function takes as arguments:
+#' 
+#' * `obs.lik`, the likelihood computed from `compute.gauss.lik`
+#' 
+#' * `piZ`, the probability of the genotypes $\pi_{1:K}$
+#' 
+#' * `A`, the matrix of transition probabilities $A$
+#' 
+#' Each element of the matrix of transition probabilities $A$, $a_{ij}$, represents the probability of moving from state $i$ to $j$. The transition matrix shows the hidden state to hidden state transition probabilities.
+#' 
+#' fwdback <- *.Call*("forward_backward", piZ, A, obs.lik, PACKAGE = "HMMcopy")
+#' 
+#' The call to the compiled C code returns a named list of elements, including:
+#' 
+#' * `rho`, responsibilities $\gamma(Z_t)$
+#' 
+#' * `xi`, 2 slice marginals $\xi(Z_{t-1}, Z_t)$
+#' 
+#' * `loglik`, log likelihood $\ell$
+#' 
+#' Again, responsibilities are the posterior of latent (hidden) states $\gamma(Z_{1:t})$ with state $Z_t = k)$ being responsible for generating observation $x_t$. Calculated using the product of `forward` probabilities, which are the joint probabilities of observing all $past$ data up to time $t$ when given $Z_t$, and `backward` probabilities, which are the conditional probabilities of all $future$ data from time $t$+1 to $T$ when given $Z_t$
+#' 
+#' 2 slice marginals are the expected number of transitions between state $k$ at time $t$-1 and state $j$ at time $t$.
+#' 
+#' The log likelihood $\ell$ is computed in the forwards recursion
+#' 
+#' Compute the responsibilities using the initial settings of the parameters `pi.init`,
+#' `A.init` and Gaussian probabilities, `obs.lik`. This is the basically the E-Step in the
+#' first iteration of EM.
+#' 
+#' Print out the log likelihood and the first 3 columns of the responsibility matrix ($\gamma(Z_{1:3})$). 
+## -----------------------------------------------------------------------------------------------------------------------------
+fwdback <- .Call("forward_backward", pi.init, A.init, obs.lik, PACKAGE = "HMMcopy")
+
+fwdback$loglik
+
+fwdback$rho[, 1:3]  # gamma
+
+#' 
+#' 
+#' 
+#' 
+#' 
+#' ### 2.2. Updating the initial state distribution parameter $\pi_{1:K}$ in the M-Step
+#' #### 2.2.1. Write a function to update the initial state distribution parameter
+#' 
+#' Write a function, `update.pi`, that computes the $maximum\ a\ posteriori\ (MAP)$  estimate update of $\pi_k$ given the responsibilities $\gamma(Z_t)$ from the E-Step and the hyperparameter $\delta^\pi_k$, for Dirichlet prior on $\pi$ parameter
+#' $$\hat{\pi}_k = \frac{\gamma(Z_1=k) +\delta^\pi(k)-1}{\sum_{j=1}^{K}\left\{ \gamma(Z_1=j)  +\delta^\pi(j)-1\right\}}$$
+#' The function returns a vector $\hat{\pi}_{1:k}$ with $K$ elements, one value for each copy number state $k\in \{1,2,3,4,5\}$
+## -----------------------------------------------------------------------------------------------------------------------------
+update.pi <- function(gamma, deltaPi){
+  pi.hat <- rep(NA, times = K)
+  for (i in 1:K) {
+    pi.hat[i] <- sum(gamma[i,1], deltaPi[i], -1)
+  }
+  pi.hat <- pi.hat/sum(pi.hat)
+  return(pi.hat)
+}
+
+#' 
+#' #### 2.2.2. Compute $\hat{\pi}$ for the first iteration of EM
+#' Print out the values of $\hat{\pi}_{1:K}$. 
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+pi.hat <- update.pi(fwdback$rho, deltaPi.hyper)
+pi.hat
+
+#' 
+#' 
+#' 
+#' 
+#' 
+#' ### 2.3. Updating the Gaussian mean parameter $\mu_{1:K}$ in the M-Step
+#' #### 2.3.1. Write a function to update Gaussian mean parameter
+#' 
+#' Write a function, `update.mu`, that computes the MAP estimate update of $\mu_k$ given the responsibilities
+#' $\gamma(Z_t)$ from the E-Step and the hyperparameters $m_k$ and $s_k$ for the Gaussian prior and variance on $\mu$ parameter
+#' $$\hat{\mu}_{k} = \frac{ s_k \sum_{t=1}^{T} \gamma(Z_t=k)x_{t} + m\sigma^2_k}{ s_k \sum_{t=1}^{T} \gamma(Z_t=k) +\sigma^2_k}$$
+#' The function returns a vector $\hat{\mu}_{1:k}$ with $K$ elements, one value for each copy number state $k\in \{1,2,3,4,5\}$
+## -----------------------------------------------------------------------------------------------------------------------------
+update.mu <- function(x, gamma, sMu, mMu, var){
+  mu.hat <- rep(NA, times = K)
+  ex.mean <- rep(0, times = K)
+  
+  for (i in 1:K) {
+    num <- 0
+    denom <- 0
+    
+    for (t in seq_len(ncol(gamma))){
+      num <- num + gamma[i,t] * x[t]
+      denom <- denom + gamma[i,t]
+    }
+    mu.hat[i] <- (sMu[i] * num + mMu[i] * var[i])/(sMu[i] * denom + var[i])
+    ex.mean[i] <- num/denom
+  }
+  update.mu.out <- list("mu.hat" = mu.hat, "ex.mean" = ex.mean)
+  #return(mu.hat)
+  return(update.mu.out)
+}
+
+#' 
+#' #### 2.3.2. Compute $\hat{\mu}$ for the first iteration of EM
+#' Compute and print out the values of $\hat{\mu}_{1:K}$ for the first iteration of EM
+## -----------------------------------------------------------------------------------------------------------------------------
+update.mu.out <- update.mu(x,fwdback$rho,sMu.hyper,mMu.hyper,var.init)
+mu.hat <- update.mu.out$mu.hat
+mu.hat
+ex.mean <-  update.mu.out$ex.mean
+ex.mean
+
+#' 
+#' 
+#' 
+#' 
+#' 
+#' ### 2.4. Updating the Gaussian variance parameter $\sigma^{2}_{1:K}$ in the M-Step
+#' #### 2.4.1. Write a function to update Gaussian variance parameter
+#' 
+#' Write a function, `update.var`, that computes the MAP estimate update of $\sigma^2_k$ given the responsibilities
+#' $\gamma(Z_t)$ from the E-Step and the hyperparameters $\alpha_k$ and $\beta_k$ for the Inverse Gamma prior on variance $\sigma^2$ parameter
+#' $$\hat{\sigma}^2_{k} = \frac{ \sum_{t=1}^{T} \gamma(Z_t=k) \left( x_{t} - \bar{x}_{t} \right)^2 + 2\beta_k}{ \sum_{t=1}^{T} \gamma(Z_t=k) + 2 \left( \alpha_k + 1 \right)}$$
+#' where $$\bar{x} = \frac{ \sum_{t=1}^{T} \gamma(Z_t=k) x_{t} }{ \sum_{t=1}^{T} \gamma(Z_t=k) }$$
+#' The function returns a vector $\hat{\sigma}^2_{1:k}$ with $K$ elements, one value for each copy number state $k\in \{1,2,3,4,5\}$
+## -----------------------------------------------------------------------------------------------------------------------------
+update.var <- function(x, gamma, ex.mean, alphaVar, betaVar){
+  var.hat <- rep(NA, times = K)
+  
+  for (i in 1:K) {
+    num <- 0
+    denom <- 0
+    
+    for (t in seq_len(ncol(gamma))) {
+      num <- num + gamma[i,t] * (x[t] - ex.mean[i])^2
+      denom <- denom + gamma[i,t]
+    }
+    var.hat[i] <- (num + 2*betaVar[i])/(denom + 2*(alphaVar[i] + 1))
+  }
+  return(var.hat)
+}
+
+#' 
+#' 
+#' #### 2.4.2. Compute $\hat{\sigma}^{2}$ for the first iteration of EM
+#' Compute and print out the values of $\hat{\sigma}^{2}_{1:K}$.
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+var.hat <- update.var(x, fwdback$rho, ex.mean, alphaVar.hyper, betaVar.hyper)
+var.hat
+
+#' 
+#' 
+#' 
+#' 
+#' ### 2.5. Updating the transition probabilities $\boldsymbol{A}$ in the M-Step
+#' #### 2.5.1. Write a function to update the transition probabilities
+#' 
+#' Write a function, `update.A`, that computes the update of $\boldsymbol{A}$ given the 2-slice marginal probabilities
+#' $\xi(Z_{t-1}, Z_t)$ from the E-Step and the hyperparameter $\delta^A_k$ for Dirichlet prior on the transition matrix
+#' $$\hat{A}_{jk} = \frac{ \sum_{t=2}^{T}\xi(Z_{t-1}=j, Z_{t}=k) +\delta^A(k)}{\sum_{k\prime=1}^{K}\left\{ \sum_{t=2}^{T} \xi(Z_{t-1}=j, Z_{t}=k\prime)  +\delta^A(k)\right\}}$$
+#' The function returns a matrix $\hat{A}$ with $K × K$ elements, each being the probability of transition from copy
+#' number state $i$ at bin $t$ (rows) to state $j$ at bin $t$+1 (columns) for each copy number state $k\in \{1,2,3,4,5\}$
+## -----------------------------------------------------------------------------------------------------------------------------
+update.A <- function(xi, deltaA){
+  A.hat <-  matrix(NA, nrow = K, ncol = K)
+  denom <- 0
+  #print(xi)    #fwdback$xi, 2 slice marginals \xi(Zt-1, Zt) - a matrix with dimensions K x K x (T-1)
+  
+  for (i in 1:K) {
+    num <- 0
+    
+    for (t in 2:dim(xi)[3]) {
+      num <- num + xi[i,,t]
+    }
+    #print(num)
+    num <- num  + deltaA[i,]
+   
+    A.hat[i,] <- num 
+    #print(num)
+    #print(A.hat[i,])
+    
+    denom <- denom + num
+  }
+  
+  #print(denom)
+  A.hat <- A.hat/denom
+  
+  return(A.hat)
+}
+
+#' 
+#' 
+#' #### 2.5.2. Compute $\boldsymbol{\hat{A}}$ for the first iteration of EM
+#' Compute and print out the values of the K X K transition matrix $\boldsymbol{\hat{A}}$.
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+A.hat <- update.A(fwdback$xi, deltaA.hyper)
+A.hat
+
+#' 
+#' 
+#' 
+#' 
+#' ### 2.6. Compute the log posterior 
+#' #### 2.6.1. Define the function, `compute.log.posterior`, to compute the log posterior distribution.
+#' 
+#' The log posterior distribution is used to monitor the convergence of EM at each iteration. This value is the
+#' sum of the log likelihood and the log of the priors in the model. The log likelihood is obtained from the
+#' Forwards-Backwards algorithm through the sum of the scaling factors for the forward recursion probabilities, $\sum_{t=1}^{T} log \sum_{k=1}^{K} \alpha(Z_t = k)$.
+#' $$\log \mathbb{P} = \ell + \log Dirichlet(\boldsymbol{\hat{\pi}}|\boldsymbol{\delta})  + \sum_{k=1}^{K} \left\{ \log \mathcal{N} (\hat{\mu}_k|m_k,s_k) +\log InvGamma(\hat{\sigma}^2_k|\alpha_k,\beta_k) +\log Dir(A^{(0)}_{k,1:K} | \hat{A}_{k,1:K}) \right\} $$
+#' Note: the $Dir(A^{(0)}_{k,1:K} | \hat{A}_{k,1:K})$ term corresponds to the $k^{th}$ row and $A^{(0)}$ is the initial settings of the transition matrix, `A.init`.
+#' 
+## ---- message=FALSE, warning=FALSE--------------------------------------------------------------------------------------------
+#install.packages("LaplacesDemon")
+
+#' 
+## ---- message=FALSE, warning=FALSE--------------------------------------------------------------------------------------------
+library(LaplacesDemon)
+
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+compute.log.posterior <- function(loglik, pi.hat, deltaPi, mu.hat, mMu, sMu, var.hat, 
+                                  alphaVar, betaVar, A.init, A.hat){
+  
+  log.posterior <- 0
+  
+  #print(loglik)
+  
+  #Dirichet priors
+  prior.dirichletpi <- 0
+  prior.dirichletpi <- ddirichlet(pi.hat, deltaPi, log=TRUE)
+  #print(prior.dirichletpi)
+  
+  prior.normal <- 0 
+  prior.invgamma <- 0
+  prior.dirichletA <- 0
+  
+  for (i in 1:K) {
+    prior.normal <- prior.normal + log(dnorm(mu.hat[i], mean = mMu[i], sd = sqrt(sMu[i])))
+    prior.invgamma <- prior.invgamma + dinvgamma(var.hat[i], 
+                                                 shape = alphaVar[i], scale = betaVar[i], 
+                                                 log = TRUE)
+    prior.dirichletA <- prior.dirichletA + ddirichlet(A.init[i,], A.hat[i,], log=TRUE)
+
+  }
+  #print(prior.normal)
+  #print(prior.invgamma)
+  #print(prior.dirichletA)
+  
+  log.posterior <- sum(loglik, prior.dirichletpi, prior.normal, prior.invgamma, prior.dirichletA)
+  
+  return(log.posterior)
+}
+
+#' The function returns a single number to monitor the EM algorithm for convergence.
+#' 
+#' #### 2.6.2. Compute the log posterior for the input data
+#' 
+#' Compute the log posterior for the first iteration of EM using:
+#' 
+#' * the log likelihood computed by the forwards-backwards algorithm, `loglik`,
+#' * the updated parameters , $\hat\pi_{1:K}$, $\hat\mu_{1:K}$ and $\hat\sigma^2_{1:K}$, and $\boldsymbol{\hat{A}}$. 
+#' * the hyperparameters, `deltaPi.hyper`, `mMu.hyper`, `sMu.hyper`, `alphaVar.hyper`, `betaVar.hype`, `A.init` for the priors.
+#' 
+#' Print out the log posterior for the first iteration of EM.
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+compute.log.posterior(fwdback$loglik, pi.hat, deltaPi.hyper, mu.hat, mMu.hyper, sMu.hyper, 
+                      var.hat, alphaVar.hyper, betaVar.hyper, A.init, A.hat)
+
+#' 
+#' 
+#' 
+#' 
+#' 
+#' 
+#' \pagebreak
+#' # 3. Learn the HMM Parameters and Predict the Copy Number Segments.
+#' ### 3.1. Implement and run the EM algorithm to infer the copy number states and learn the parameters.
+#' Implement the full EM algorithm for inferring the responsibilities and estimating the HMM parameters in a Bayesian framework.
+#' 
+#' Run the EM algorithm until convergence, which is when the log posterior changes by less than $\epsilon$ = 10^-2
+#' 
+#' i. Print out converged parameters:
+#' * the Gaussian mean and variance parameters $\hat{\mu}_{1:K}$ and $\hat{\sigma}^2_{1:K}$
+#' * the initial state distribution $\hat{\pi}_{1:K}$
+#' * the transition matrix $\hat{A}$
+#' ii. Print out the log posterior for all iterations.
+#' iii. Save the Gaussian likelihood probabilities obs.lik computed in the final iteration.
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+converged = FALSE
+epsilon = 10^-2
+
+#Initialize
+pi <- pi.init
+mu <- mu.init
+var <- var.init
+A <- A.init
+logP <-  -Inf
+curr.iter <- 1
+prev.iter <- 0
+
+#Compute the observed likelihood using initial parameters
+obs.lik <- compute.gauss.lik(x, mu, var)
+
+while (converged == FALSE) {
+  
+  curr.iter <-  curr.iter + 1 
+  
+  #E-step: Compute responsibilities
+  fwdback <- .Call("forward_backward", pi, A, obs.lik, PACKAGE = "HMMcopy")
+
+  loglik <- fwdback$loglik
+  gamma <- fwdback$rho
+  
+  #M-step: Update parameters
+  pi.hat <- update.pi(gamma, deltaPi.hyper)
+  
+  update.mu.out <- update.mu(x, fwdback$rho, sMu.hyper, mMu.hyper,var)
+  mu.hat <- update.mu.out$mu.hat
+  ex.mean <-  update.mu.out$ex.mean
+  
+  var.hat <- update.var(x, fwdback$rho, ex.mean, alphaVar.hyper, betaVar.hyper)
+  
+  A.hat <- update.A(fwdback$xi, deltaA.hyper)
+  
+  #M-step: Assign updated parameters
+  pi <- pi.hat
+  mu <- mu.hat
+  var <- var.hat
+  A <- A.hat
+  
+  #M-step: Recompute the observed likelihood using update parameters
+  obs.lik <- compute.gauss.lik(x, mu, var)
+  
+  #M-step:Compute log Posterior
+  logP[curr.iter] <- compute.log.posterior(fwdback$loglik, pi, deltaPi.hyper, 
+                                           mu, mMu.hyper, sMu.hyper, var,
+                                           alphaVar.hyper, betaVar.hyper, A.init, A)
+  #print(logP[curr.iter])
+  
+  prev.iter <- curr.iter - 1
+  
+  if ( (logP[curr.iter] - logP[prev.iter])  < epsilon ) {
+    converged = TRUE
+  } 
+  logP[prev.iter] <-  logP[curr.iter]
+}
+  
+print(pi)
+print(mu)
+print(var)
+print(A)
+#print(obs.lik)
+print(logP[1:prev.iter])
+
+#' 
+#' 
+#' ### 3.2. Determine the copy number segments using the Viterbi algorithm
+#' 
+#' Compute the optimal sequence of copy number states using the Viterbi algorithm, also known as the max-sum algorithm, so computation is performed in log space.
+#' 
+#' states <- *.Call*("viterbi", log(pi.hat), log(A.hat), log(obs.lik), PACKAGE = "HMMcopy")$path
+#' 
+#' The function takes as arguments:
+#' 
+#' * `log(pi.hat)`, the converged initial state distribution in log space, log$\hat{\pi}_{1:K}$
+#' 
+#' * `log(A.hat)`, the converged matrix of transition probabilities, log$A$
+#' 
+#' * `log(obs.lik)`, the Gaussian likelihood probabilities in log space from the final iteration of EM, log$\mathcal{N}(x_t|\mu_k, \sigma^2)$
+#' 
+#' The call to the compiled C code returns a named list of elements, including the sequence of copy number states (`path`).
+#' 
+#' i. Run Viterbi algorithm to obtain the sequence of copy number states using the converged parameters and Gaussian likelihood (from the final EM iteration) as input. 
+#' 
+#' ii. Print out a table of the copy number segments by combining the output from the Viterbi algorithm with the original input file. 
+#' A segment is defined as the consecutive set of bins with the same copy number state. The `start`, `end` and `medianLog2Ratio` for a segment are determined from the input file.
+#' 
+#' The final table will have the following columns:
+#' 
+#' * `chr`, chromosome of the segment
+#' 
+#' * `start`, start genomic coordinate of the segment
+#' 
+#' * `end`, end genomic coordinate of the segment
+#' 
+#' * `medianLog2Ratio`, median log2Ratio of the segment
+#' 
+#' * `CopyNumber`, copy number state of the segment 
+#' 
+## -----------------------------------------------------------------------------------------------------------------------------
+states <-  .Call("viterbi", log(pi), log(A), log(obs.lik), PACKAGE = "HMMcopy")$path
+states
+
+# create table of segments
+x.states <- data.frame(LogRatios) %>%
+  select(-readCount) %>%
+  mutate(CopyNumber = states) 
+#x.states  
+
+CopyNumber.init <- 0
+
+#x.states.segs 
+x.states.segs <-  x.states %>%
+  mutate(seg.diff = c(CopyNumber.init, diff(x.states$CopyNumber, differences = 1))) #%>%
+  
+x.states.segments <- x.states.segs %>%
+  mutate(segment = cumsum(1:nrow(x.states.segs)%in%
+                            which(x.states.segs$seg.diff != 0, 
+                                  arr.ind = TRUE, useNames = TRUE))) %>%
+  group_by(segment) %>%
+  summarize(
+    chr = unique(chr),
+    start = min(start),
+    end = max(end),
+    medianLog2Ratio = median(log2Ratio, na.rm = TRUE),
+    CopyNumber = unique(CopyNumber)
+  ) #%>%
+  #select(-segment)
+
+x.states.segments
+
+write_delim(x.states.segments,"segments_LAC.txt")
+
+#' 
+#' 
+#' 
+#' 
