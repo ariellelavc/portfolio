@@ -1,0 +1,641 @@
+#svl
+
+
+
+// INDUCTIVE LOOKUP TABLE
+const MOE_PARAM = tr [
+    [	['El','VSt','IO'],	['EO' , 'R2_cov','Type',	        'PEOE',  'PEF95sac','Kollman89',   'Kollman94',	'MMFF94s','MMFF94','OPLS',  'TAFF',	'AMBER89',    'AMBER94',   'Bnd_ch_inc', 'CHARM22','EEM','Empiric','E_H']],
+//	----------------  	 ----	-------	--------		-------	--------     ---------      ---------    -------   ------   ----     ----       -------        -------  	---------  ------- -----  -------  -----
+    [	['H', 'sp3',  0] ,	[2.10,	0.0900,	'Hydrogen'		,2.00	  ,2.00		,2.00	   	,2.00     ,2.00   ,2.00	   ,2.00    ,2.00	 ,2.00  	,2.00   	,2.00      ,2.00   ,2.00  ,2.00    ,2.00	]],
+    [	['C', 'sp3',  0] ,	[2.39,	0.5929,	'Carbon_sp3'		,2.12	  ,2.62	 	,2.28	   	,2.42     ,2.14   ,2.14	   ,2.35    ,2.08 	 ,2.28  	,2.42  	 	,2.37      ,2.44   ,2.05  ,2.37    ,2.38	]],
+    [	['C', 'sp2',  0] ,	[2.3,	0.4489,	'Carbon_sp2'		,2.02	  ,2.04	 	,1.90	   	,1.95     ,1.91   ,1.91    ,1.94    ,1.97 	 ,1.90 		,1.95   	,2.04      ,2.01   ,1.98  ,2.03    ,1.98	]],
+    [	['C', 'sp',   0] ,	[3.15,	0.3600,	'Carbon_sp'		,-999	  ,-999	 	,-999	  	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['C', 'sp3', -1] ,	[-999,	0.5929,	'Carbon_sp3_anion'	,-999	  ,-999 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['N', 'sp',  0] ,	[2.79,	0.4900,	'Nitrogen_sp'		,2.51	  ,3.02	 	,2.78	   	,2.81     ,3.38   ,3.38    ,2.92    ,3.43	 ,2.78  	,2.81   	,2.88      ,2.98   ,2.15  ,2.88    ,2.67	]],
+    [	['N', 'sp3',  0] ,	[3.01,	0.4900,	'Nitrogen_sp3'		,2.51	  ,3.02	 	,2.78	   	,2.81     ,3.38   ,3.38    ,2.92    ,3.43	 ,2.78  	,2.81   	,2.88      ,2.98   ,2.15  ,2.88    ,2.67	]],
+    [	['N', 'sp2',  0] ,	[2.79, 	0.4900,	'Nitrogen_sp2'		,2.48	  ,2.78	 	,2.67	   	,2.76     ,2.91   ,2.91    ,2.66    ,2.93 	 ,2.67  	,2.77   	,2.69      ,2.86   ,2.18  ,2.69    ,2.61	]],
+    [	['N', 'sp2',  1] ,	[3.62 ,	0.4900,	'Nitrogen_sp2_cation'	,2.39	  ,2.82	 	,2.44	   	,2.65     ,3.08   ,3.08    ,2.75    ,3.28 	 ,2.45  	,2.65   	,2.71      ,2.97   ,2.20  ,2.70    ,2.60	]],
+    [	['N', 'sp3',  1] ,	[3.52,	0.4900,	'Nitrogen_sp3_cation'	,2.45	  ,2.72	 	,2.57	   	,2.46     ,3.08   ,3.08    ,2.59    ,2.68 	 ,2.57 		,2.46   	,2.93      ,2.62   ,2.15  ,2.92    ,2.61	]],
+    [	['O', 'sp3',  0] ,	[3.20,	0.4356,	'Oxygen_sp3'		,2.66	  ,3.33	 	,3.14	   	,3.34     ,3.24   ,3.24    ,3.15    ,3.14	 ,3.14  	,3.35   	,3.05      ,3.24   ,2.34  ,3.05    ,3.20	]],
+    [	['O', 'sp2',  0] ,	[3.12,	0.3844,	'Oxygen_sp2'		,2.62	  ,3.47	 	,3.23	   	,3.46     ,3.41   ,3.41    ,3.29    ,3.36	 ,3.24  	,3.46   	,2.65      ,3.35   ,2.44  ,2.65    ,3.23	]],
+    [	['O', 'sp3', -1] ,	[2.23,	0.4356,	'Oxygen_sp3_anion'	,3.68	  ,3.68	 	,3.62	   	,3.89     ,4.11   ,4.11    ,3.89    ,4.04 	 ,3.63  	,3.90   	,2.73      ,3.86   ,2.44  ,2.73    ,3.35	]],
+    [	['O', 'sp2', -1] ,	[2.18 ,	0.4356,	'Oxygen_sp2_anion'	,3.59	  ,3.49	 	,3.43	   	,3.70     ,3.78   ,3.78    ,3.64    ,3.76 	 ,3.44  	,3.70   	,2.65      ,3.63   ,2.44  ,2.65    ,3.22	]],
+    [	['F', 'sp3',  0] ,	[4.00,	0.4096,	'Fluorine'		,-999	  ,-999		,-999	   	,-999     ,-999   ,-999    ,-999    ,-999 	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['Cl','sp3',  0] ,	[3.28,	0.9801,	'Chlorine'		,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999 	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['Br','sp3',  0] ,	[3.13,	1.2996,	'Bromine'		,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['I', 'sp3',  0] ,	[2.93,	1.7689,	'Iodine'		,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['S', 'sp3',  0] ,	[2.63,	1.0816,	'Sulfur_sp3'		,2.31	  ,2.87	 	,1.49	   	,2.61     ,2.73   ,2.73    ,2.74    ,2.00	 ,1.47  	,2.62   	,2.34      ,2.54   ,1.91  ,2.34    ,2.50	]],
+    [	['S', 'sp2',  0] ,	[4.48,	0.8836,	'Sulfur_sp2'		,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['S', 'sp3',  2] ,	[4.79,	0.8836,	'Sulfur_sp3_cation'	,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['Se','sp3',  0] ,	[2.54,	1.3689,	'Selenium_sp3'		,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['P', 'sp3',  0] ,	[2.20,	1.2100,	'Phosphorus_sp3'	,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['P','dsp2',  0] ,	[2.26,	1.2100,	'Phosphorus_dsp2'	,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['Si', 'sp3', 0] ,	[1.99,	1.2321,	'Silicon_dsp3'		,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]],
+    [	['LP', 'sp',  0] ,	[-999, 	0.0000,	'Lone_Pair'		,-999	  ,-999	 	,-999	   	,-999     ,-999   ,-999    ,-999    ,-999	 ,-999  	,-999   	,-999      ,-999   ,-999  ,-999    ,-999	]]
+];
+
+const MAX_INTERACTION_DISTANCE = 30;												//  upper boundary for interatomic distances in Angstroms
+const EO_ITERATION_STEP        = 0.01;
+
+// RETRIEVES INDUCTIVE ELECTRONEGATIVITY (EO) AND COVALENT RADII FOR ATOMS BASED ON THEIR NAME, VALENCE STATE AND CHARGE
+global function get_moe_param [Element, Hybridization, FormalCharge, EO_Type]   						// this function will retrieve covalent radii and EO for MOE atomic types
+
+print  [Element, Hybridization, FormalCharge]  ; 	
+
+// print indexof[EO_Type,(second MOE_PARAM)(1)];
+
+	return [(second MOE_PARAM)(indexof [tr [Element, Hybridization, FormalCharge], first MOE_PARAM])(1),  		 // translates the EO content
+		   (second MOE_PARAM)(indexof [tr [Element, Hybridization, FormalCharge], first MOE_PARAM])(2),  		 // translates the radius value (R2_cov) from the table
+		   (second MOE_PARAM)(indexof [tr [Element, Hybridization, FormalCharge], first MOE_PARAM])(3),  		 // translates the custom atomic type from the table
+		   (second MOE_PARAM)(indexof [tr [Element, Hybridization, FormalCharge], first MOE_PARAM])(indexof[EO_Type,(second MOE_PARAM)(1)]) // atom electronegativity
+            ];
+endfunction
+
+//STRUCTURE PREPARATION
+function _StructurePreparation;
+
+//prepare structures
+function prep_diagnose_charge;
+function prep_fix_charge;
+
+//alternative to _StructurePreparation
+local function prepare_structure [chain]
+	//prepare structures
+	local res = cat cResidues chain;
+	local prob = prep_diagnose_charge res;
+	prep_fix_charge [res, prob];
+endfunction
+
+//CALCULATION OF ALL ATOMS IN THE PROTEIN-LIGAND BINDING REGION  WITHIN A USER_DEFINED CUTOFF
+local function calc_pocket [chain, rcutoff]
+	
+	//pot_Load '$MOE/lib/Amber10EHT.ff';   //load force field if not already done so within MOE
+	
+	_StructurePreparation [chain, [batch_protonate3d : 0]];
+	//prepare_structure [chain];
+	
+	local _r_aKeys;
+	local _l_aKeys;
+
+	//create neighbourhood around ligand within rcutoff distance
+	local obj = _SelectExpr [swrite ['{}', ["ligand",">>", rcutoff]], chain];
+	local _all_aKeys = app oAtoms obj;
+			
+	if length chain == 3 then //3 chains R,L,S (Receptor, Ligand, Solvent)
+		_r_aKeys = cat app cat [second _all_aKeys, third _all_aKeys, second _all_aKeys(1)];
+		_l_aKeys = cat first _all_aKeys(1);
+	else //2 chains R,L
+		_r_aKeys = cat app cat [second _all_aKeys, third _all_aKeys];
+		_l_aKeys = cat first _all_aKeys;
+	endif
+	//print  length _r_aKeys;
+	//print length _l_aKeys;
+
+	return [_r_aKeys, _l_aKeys];
+endfunction
+
+//calculate maximum number of atoms in the protein-ligand binding cutoff region of interest among all input complexes
+local function calc_largest_pocket [chain, atoms_largest_pocket, fields]
+		print "calc_largest_pocket";
+		
+		_StructurePreparation [chain, [batch_protonate3d : 0]];
+		
+		local _all_aKeys             =  cAtoms chain;
+		//print _all_aKeys;
+		local _r_aKeys = cat [first _all_aKeys, third _all_aKeys];
+		//print length _r_aKeys;
+		local _l_aKeys = second _all_aKeys;
+		//print _l_aKeys;
+
+		local _r_aAtoms = [];
+		local _tags = [];	
+		local _p_aKeys = [];	
+		local _running_aKey;
+		local residue_index;
+		local residue_number;
+		
+		local residues = tr [first fields(3), second fields(3)];		
+		local residues_numbers = second fields(3);
+		
+		for   _running_aKey in _r_aKeys	loop
+	
+			residue_index = 	rNumber  aResidue _running_aKey;					
+					
+			if rName aResidue _running_aKey === 'HOH' then
+				
+				residue_index = length residues;
+			endif
+			
+			residue_number = swrite ['{}', [residues_numbers(residue_index)]];
+			
+			local _tag = token swrite ['{}', [residue_number, aName _running_aKey]];
+						
+			_tags = cat [_tags, _tag];
+			
+		endloop;
+	
+		_r_aAtoms = tag [_tags, _r_aKeys];
+		//print length _r_aAtoms;
+		
+		_p_aKeys = cat tagget [_r_aAtoms, atoms_largest_pocket];
+		//print length _p_aKeys;
+	return [_p_aKeys, _l_aKeys];
+endfunction
+
+//used in calc_descriptors_AA
+//retrieves atoms of receptor residues at mutated location
+local function get_mutation_aKeys [chain, mutation, fields]
+		
+		_StructurePreparation [chain, [batch_protonate3d : 0]];
+		
+		local _all_aKeys             =  cAtoms chain;
+		local _r_aKeys = cat [first _all_aKeys, third _all_aKeys];
+
+		local _r_aAtoms = [];
+		local _tags = [];	
+		local _aa_aKeys = [];	
+		local _running_aKey;
+		local residue_index;
+		local residue_number;
+		
+		local residues = tr [first fields(3), second fields(3)];		
+		local residues_numbers = second fields(3);
+		
+		for   _running_aKey in _r_aKeys	loop
+	
+			residue_index = 	rNumber  aResidue _running_aKey;
+			
+			residue_number = swrite ['{}', [residues_numbers(residue_index)]];
+			
+			local _tag = token swrite ['{}', [residue_number]];
+						
+			_tags = cat [_tags, _tag];
+			
+		endloop;
+	
+		_r_aAtoms = tag [_tags, _r_aKeys];
+		//print length _r_aAtoms;
+		
+		_aa_aKeys = cat tagget [_r_aAtoms, cat mutation];
+		print "length aa keys";
+		print length _aa_aKeys;
+	return _aa_aKeys;
+endfunction
+
+//RETRIEVES RECEPTOR AND LIGAND ATOMS OF SPECIFIC TYPE
+local function filter_atoms[_r_aKeys, _l_aKeys, r_aType, l_aType]
+   
+  local receptor = _r_aKeys;
+ 
+  local ligand = _l_aKeys;
+
+  local receptor_mask_aType_R = sm_Match [r_aType, receptor];
+
+  local receptor_atoms = receptor;
+
+  if app add [receptor_mask_aType_R] <> 0  then 
+    receptor_atoms = receptor|receptor_mask_aType_R;
+  endif
+  
+  local ligand_mask_aType_L = sm_Match [l_aType, ligand];
+
+  local ligand_atoms = ligand;
+
+  if app add [ligand_mask_aType_L] <> 0 then 
+    ligand_atoms = ligand|ligand_mask_aType_L;
+  endif
+ 
+  return [receptor_atoms, ligand_atoms];
+
+endfunction
+
+//RETRIEVES RECEPTOR AND LIGAND ATOMS IN SPECIFIC HYBRIDIZED STATES
+local function filter_ahTypes[_r_aKeys, _l_aKeys, _r_ahType, _l_ahType]
+   
+  local receptor = _r_aKeys;
+  local ligand = _l_aKeys;
+
+  local receptor_mask_aType_R;
+
+  if first _r_ahType === 'H' then
+    receptor_mask_aType_R = sm_Match ['[#1]', receptor];
+  else
+    receptor_mask_aType_R = sm_Match [first _r_ahType, receptor];
+  endif;
+
+  local receptor_atoms = receptor;
+
+  if app add [receptor_mask_aType_R] <> 0  then 
+    receptor_atoms = receptor|receptor_mask_aType_R;
+  endif
+
+  local ligand_mask_aType_L;
+
+  if first _l_ahType === 'H' then
+    ligand_mask_aType_L = sm_Match ['[#1]', ligand];
+  else
+    ligand_mask_aType_L = sm_Match [first _l_ahType, ligand];
+  endif;
+
+  local ligand_atoms = ligand;
+
+  if app add [ligand_mask_aType_L] <> 0 then 
+    ligand_atoms = ligand|ligand_mask_aType_L;
+  endif
+
+  local receptor_ahAtoms, ligand_ahAtoms, atom;
+
+  for atom in receptor_atoms loop
+    if aGeometry atom === second _r_ahType then
+	receptor_ahAtoms = cat [receptor_ahAtoms, atom];
+    endif;
+  endloop;
+
+   for atom in ligand_atoms loop
+    if aGeometry atom === second _l_ahType then
+	ligand_ahAtoms = cat [ligand_ahAtoms, atom];
+    endif;
+  endloop;
+ 
+  return [receptor_ahAtoms, ligand_ahAtoms];
+
+endfunction
+
+//COMPUTES DESCRIPTORS THAT QUANTIFY THE CUMULATIVE INFLUENCE (STERIC-Rs, POLAR-Sigma, INDUCED CHARGE-Q)
+// OF ALL LIGAND ATOMS ON ALL RECEPTOR ATOMS OF TYPES WITHIN CUTOFF REGION
+// e.g. l_aType = 'O' for every oxygen atom in the ligand, r_aType = 'C' for all carbon atoms in the receptor
+local function calc_descriptors_ligand[_r_aKeys, _l_aKeys, r_aType, l_aType, EO_Type]
+
+  local receptor_atoms, ligand_atoms;
+  
+  [receptor_atoms, ligand_atoms] = filter_atoms [_r_aKeys, _l_aKeys, r_aType, l_aType];
+
+  local atom_L, atom_R, dist, sqr_dist, Sigma, Sigma_L_R, Rs, Rs_L_R, Abs_Rs, Abs_Rs_L_R, Q, Q_tot, Q_L_R;
+  local R2_cov_L, R2_cov_R, aType_L, aType_R, EO_L, EO_R, EO_L_atom, EO_R_atom;
+  
+  for atom_L in ligand_atoms loop 
+    //  GETS ATOMIC RADII, EO FOR EACH ATOM OF THE LIGAND
+    [EO_L, R2_cov_L, aType_L, EO_L_atom] = get_moe_param [
+      aElement atom_L, aGeometry atom_L, aFCharge atom_L, EO_Type
+    ];
+   
+    for atom_R in receptor_atoms loop
+      //  GETS ATOMIC RADII, EO FOR EACH ATOM OF THE RECEPTOR
+      [EO_R, R2_cov_R, aType_R, EO_R_atom] = get_moe_param [
+        aElement atom_R, aGeometry atom_R, aFCharge atom_R, EO_Type
+      ];
+
+      dist = aDist [atom_R, atom_L];
+      sqr_dist = sqr dist;
+
+      Rs =  cat [Rs, R2_cov_L/sqr_dist];
+      Abs_Rs = cat [Abs_Rs , R2_cov_R*R2_cov_L/sqr_dist]; 
+      Sigma = cat [Sigma, (EO_R_atom - EO_L_atom)*R2_cov_R/sqr_dist];
+      Q = cat [Q, (EO_R_atom - EO_L_atom)*(R2_cov_R + R2_cov_L)/sqr_dist]; 
+      Q_tot = aFCharge atom_L + 0.172 * app add [Q];
+     
+      //print [aElement atom_R, aGeometry atom_R, R2_cov_R, EO_R_atom,
+      //       aElement atom_L, aGeometry atom_L, R2_cov_L, EO_L_atom,
+      //       dist,(EO_R_atom - EO_L_atom)*R2_cov_R/sqr_dist, Sigma];
+    endloop
+  endloop
+
+  Rs_L_R = app add [Rs];
+  Abs_Rs_L_R = app add [Abs_Rs];
+  Sigma_L_R = app add [Sigma];
+  Q_L_R = app add [Q_tot];
+
+  local desc_L = tag [['Rs_L_R', 'Abs_Rs_L_R', 'Sigma_L_R', 'Q_L_R'], [Rs_L_R, Abs_Rs_L_R, Sigma_L_R, Q_L_R]];
+
+  return desc_L;
+
+endfunction
+
+// COMPUTES DESCRIPTORS THAT QUANTIFY THE STERIC AND INDUCTIVE EFFECTS
+// OF ALL ATOMS OF MUTATED RECEPTOR AMINO ACID RESIDUES VS WILD-TYPE
+local function calc_descriptors_aa[_aa_aKeys, _r_aKeys, _l_aKeys, r_aType, l_aType, EO_Type]
+
+  local receptor_atoms, ligand_atoms;
+  
+  [receptor_atoms, ligand_atoms] = [_r_aKeys, _l_aKeys];
+
+  local atom_O, atom_R, dist, sqr_dist, Sigma, Sigma_AA_O, Rs, Rs_AA_O, Abs_Rs, Abs_Rs_AA_O;
+  local R2_cov_AA, R2_cov_O, aType_AA, aType_O, EO_AA, EO_O, EO_AA_atom, EO_O_atom;
+  local atom_AA, desc_AA;
+
+  local _tags = ['Rs_AA_L', 'Abs_Rs_AA_L', 'Sigma_AA_L'];
+  local _o_aKeys;
+
+  _o_aKeys = ligand_atoms; 
+
+  for atom_AA in _aa_aKeys loop 
+    //  GETS ATOMIC RADII, EO FOR EACH ATOM OF THE RECEPTOR
+    [EO_AA, R2_cov_AA, aType_AA, EO_AA_atom] = get_moe_param [
+      aElement atom_AA, aGeometry atom_AA, aFCharge atom_AA, EO_Type
+    ];
+    
+    for atom_O in _o_aKeys loop
+      //  GETS ATOMIC RADII, EO FOR EACH ATOM OF THE LIGAND
+      [EO_O, R2_cov_O, aType_O, EO_O_atom] = get_moe_param [
+        aElement atom_O, aGeometry atom_O, aFCharge atom_O, EO_Type
+      ];
+
+      dist = aDist [atom_AA, atom_O];
+      sqr_dist = sqr dist;
+
+      Rs =  cat [Rs, R2_cov_AA/sqr_dist];
+      Abs_Rs = cat [Abs_Rs , R2_cov_AA*R2_cov_O/sqr_dist]; 
+      Sigma = cat [Sigma, (EO_O_atom - EO_AA_atom)*R2_cov_O/sqr_dist];
+
+    endloop
+  endloop
+
+  Rs_AA_O = app add [Rs];
+  Abs_Rs_AA_O = app add [Abs_Rs]; 
+  Sigma_AA_O = app add [Sigma];
+
+  desc_AA = [Rs_AA_O, Abs_Rs_AA_O, Sigma_AA_O];
+
+  desc_AA = tag [_tags, desc_AA];
+  //print desc_AA;
+  return desc_AA;
+
+endfunction
+
+
+local function calc_descriptors_R_L_aType[_r_aKeys, _l_aKeys, _r_ahType, _l_ahType, EO_Type]
+
+  local receptor_atoms, ligand_atoms;
+  
+  [receptor_atoms, ligand_atoms] = filter_ahTypes [_r_aKeys, _l_aKeys, _r_ahType, _l_ahType];
+
+  local atom_L, atom_R, dist, sqr_dist, Sigma, Sigma_R_L, Rs, Rs_R_L, Abs_Rs, Abs_Rs_R_L;
+  local R2_cov_L, R2_cov_R, aType_L, aType_R, EO_L, EO_R, EO_L_atom, EO_R_atom;
+  local inv_r2, inv_r2_R_L_aType;
+  
+  for atom_R in receptor_atoms loop 
+    //  GETS ATOMIC RADII, EO FOR EACH ATOM OF THE RECEPTOR
+    [EO_R, R2_cov_R, aType_R, EO_R_atom] = get_moe_param [
+      aElement atom_R, aGeometry atom_R, aFCharge atom_R, EO_Type
+    ];
+   
+    for atom_L in ligand_atoms loop
+      //  GETS ATOMIC RADII, EO FOR EACH ATOM OF THE LIGAND
+      [EO_L, R2_cov_L, aType_L, EO_L_atom] = get_moe_param [
+        aElement atom_L, aGeometry atom_L, aFCharge atom_L, EO_Type
+      ];
+
+      dist = aDist [atom_R, atom_L];
+      sqr_dist = sqr dist;
+
+      inv_r2 = cat [inv_r2, 1/sqr_dist];
+
+    endloop
+  endloop
+
+  inv_r2_R_L_aType = app add [inv_r2];
+  return inv_r2_R_L_aType;
+
+endfunction
+
+//MAIN FUNCTION
+global function db_save_entries [filename, file_to_open, EO_TYPE, rcutoff, defLargestPocket, mutations]
+
+	local mdb_key      = db_Open     [filename,    'read'  ]; 
+	local mdb_new_key  = db_Open     [file_to_open,'create']; 	 							// creates new database in which the records will be expanded
+	
+	// CREATES FIELDS FOR INPUT DATA IN OUTPUT DB
+	db_CreateField [mdb_new_key, 'mol_in',       		    'molecule'  ];	 							// creates field for input molecule, i.e. docked protein-ligand complex
+	db_CreateField [mdb_new_key, 'mol',       		    'molecule'  ];	 							// creates molecule field for extracted binding site region
+	db_CreateField [mdb_new_key, 'ligand',        		    'molecule'  ];	 							// creates molecule field for molecule
+	db_CreateField [mdb_new_key, 'name',             		'char'  ];                          // creates char field for name of the complex
+	db_CreateField [mdb_new_key, 'activity',			  'int' ];	 							// creates int field for target activity
+
+	
+	
+	// LOOPS THROUGH THE INPUT DB, GETS ALL MOLECULES AND EXPANDS THEIR CONTENT INTO THE OUTPUT DB
+	local all_molecules         = [];	
+	local ent                   = 0;
+	local atoms_within_rcutoff = [];
+
+	if defLargestPocket === 'T' then
+		while ent = db_NextEntry [mdb_key,ent]	loop   		 					 		// start looping through the INPUT DB's records
+											                                            // reads from the DB with mdb_key handle having ent as gliding handle for the entries
+			oDestroy Chains [];
+			local mol_name               =  db_ReadFields[mdb_key, ent, 'name'];                	  	 		// reads name of molecule (entry 1)
+		    all_molecules  	     =  cat [all_molecules, token cat mol_name];
+			local fields = mol_Cat db_ReadFields[mdb_key, ent,['mol']];
+			//print fields;
+			local residues = tr [first fields(3), second fields(3)];		
+			local residues_numbers = second fields(3);
+			//print residues_numbers;
+		
+			// CREATES A VIRTUAL MOLECULE FOR EACH DB RECORD AND LOADS IT INTO THE WORKING SPACE
+			local [chain, molecule_name] =  db_CreateMolecule mol_Cat db_ReadFields[mdb_key, ent,['mol']]; 	 		// chain holds a key number of the current chain
+			//print chain;			
+
+			//create neighbourhood around ligand within rcutoff distance
+			local [_r_aKeys, _l_aKeys] = calc_pocket [chain, rcutoff];
+		
+			local _running_aKey		 ;
+  			local  residue_index	     = 1 ;		
+			local  residue		         ;	
+			local  residue_number	         ;
+			local _tag;
+
+			for   _running_aKey in _r_aKeys	loop	  							// loops for all atoms in molecule
+ 				residue_index = 	rNumber  aResidue _running_aKey;
+				if rName aResidue _running_aKey === 'HOH' then
+					residue_index = length residues;
+				endif
+				residue = swrite ['{}', [residues(residue_index)]];
+				residue_number = swrite ['{}', [residues_numbers(residue_index)]];
+
+				atoms_within_rcutoff = cat [atoms_within_rcutoff, token swrite ['{}', [residue_number, aName _running_aKey]]];					
+			endloop;   	
+
+		endloop;
+	endif;
+   	 					 							
+	local atoms_largest_pocket = uniq atoms_within_rcutoff;
+
+	//print length atoms_largest_pocket;
+	
+	local db_fields  = [];
+	local db_entries = [];	
+	local db_field_names;
+	local activity;	
+	local mutation;       
+    local _aa_aKeys;
+	local r_aType = ''; local l_aType='';
+
+    local r_ahType = ['C':'sp3','C':'sp2','O':'sp3','O':'sp2','N':'sp3','N':'sp2','S':'sp3'];
+    local l_ahType = ['C':'sp3','C':'sp2','C':'sp','O':'sp3','O':'sp2','N':'sp3','N':'sp2','N':'sp','S':'sp3','S':'sp2','F':'sp3'];
+      
+
+	//for each complex redefine the pocket to include all atoms in the largest pocket among the dataset if required 
+	while ent = db_NextEntry [mdb_key,ent]	loop
+		oDestroy Chains [];
+		mol_name               =  db_ReadFields[mdb_key, ent, 'name'];
+		all_molecules  	     =  cat [all_molecules, token cat mol_name];
+		fields = mol_Cat db_ReadFields[mdb_key, ent,['mol']];
+		residues = tr [first fields(3), second fields(3)];		
+		residues_numbers = second fields(3);
+
+		activity = db_ReadFields[mdb_key, ent, ['activity']];
+
+		// CREATES A VIRTUAL MOLECULE FOR EACH DB RECORD AND LOADS IT INTO THE WORKING SPACE
+		[chain, molecule_name] =  db_CreateMolecule mol_Cat db_ReadFields[mdb_key, ent,['mol']];
+
+        //RETRIEVES RECEPTOR AND LIGAND ATOMS WITHIN DESIRED CUTOFF BINDING SITE REGION
+		if defLargestPocket === 'T' then
+			[_r_aKeys, _l_aKeys] = calc_largest_pocket [chain, atoms_largest_pocket, fields];
+		else 
+			[_r_aKeys, _l_aKeys] = calc_pocket [chain, rcutoff];
+		endif;
+
+		//COMPUTE DESCRIPTORS
+
+		//descriptors that quantify the cumulative influence (steric, polar, induced charge) of all ligand atoms on all receptor atoms within cutoff region
+		print "calc_descriptors_ligand";
+ 		local desc_L = calc_descriptors_ligand[_r_aKeys, _l_aKeys, r_aType, l_aType, EO_TYPE];
+		print desc_L;
+
+		//descriptors that quantify the steric and inductive effects of all atoms of mutated amino acid residues relative to the wild-type receptor
+		print "calc_descriptors_AA";
+		local desc_AA = [];
+		for mutation in mutations loop
+			_aa_aKeys = get_mutation_aKeys [chain, mutation, fields];	
+			 desc_AA = cat [desc_AA, tag [tok_cat mutation, [calc_descriptors_aa[_aa_aKeys, _r_aKeys, _l_aKeys, r_aType, l_aType, EO_TYPE]]]];
+		endloop;
+		print desc_AA;
+
+        //descriptors that quantify the protein-ligand interactions between all receptor atoms in all possible hybridization states
+        //and all ligand atoms in their hybridized state within the cutoff region
+		print "calc_descriptors_R_L_aType";
+	    local desc_R_L_aType  = [];
+		local rah, lah, _ah_desc;
+
+		for rah in r_ahType loop			
+			for lah in l_ahType loop	
+				_ah_desc = tok_cat ['R_', tok_cat rah, '-', 'L_', tok_cat lah];		
+				print _ah_desc;
+				desc_R_L_aType = cat [desc_R_L_aType, tag [_ah_desc, calc_descriptors_R_L_aType[_r_aKeys, _l_aKeys, rah, lah, EO_TYPE]]];
+			endloop;				 
+		endloop;       
+            	print desc_R_L_aType;
+
+        //WRITE EXTRACTED DATA FROM INPUT DB TO OUTPUT DB
+		local output1 =  [mdb_new_key,0, 									
+						  [mol_in:fields,
+				       	   mol:db_ExtractMolecule cat [_l_aKeys, _r_aKeys],
+					 	   ligand:db_ExtractMolecule cat [_l_aKeys],
+					   	   name:first mol_name,
+				     	   activity:activity
+					      ]
+					     ];
+
+  		local entry_key1 = db_Write output1;			
+
+		//COLLECT COMPUTED DESCRIPTORS FOR STORAGE IN OUTPUT DB
+		db_entries = cat [db_entries, [[mol_name, _r_aKeys, _l_aKeys, desc_L, desc_AA, activity, entry_key1, desc_R_L_aType]]];
+
+	endloop;
+
+							 							
+		local desc;
+		local db_field_name;
+		local db_field_value;
+		local db_field;
+		local db_entry;
+
+		//  CREATES DESCRIPTOR FIELDS IN OUTPUT DB
+		
+		for desc in ['Rs_L_R', 'Abs_Rs_L_R', 'Sigma_L_R', 'Q_L_R'] loop			
+			db_field_name = token swrite ['{}', [desc]];
+			db_CreateField [mdb_new_key, db_field_name,  		'float' ];			
+		endloop;
+
+		for mutation in mutations loop
+			for desc in ['Rs_AA_L', 'Abs_Rs_AA_L', 'Sigma_AA_L'] loop
+		
+				db_field_name = token swrite ['{}', [cat mutation, desc]];
+				db_CreateField [mdb_new_key, db_field_name,  		'float' ];
+			endloop;
+		endloop;
+
+		for rah in r_ahType loop			
+			for lah in l_ahType loop	
+				_ah_desc = tok_cat ['R_', tok_cat rah, '-', 'L_', tok_cat lah];		
+				db_field_name = token swrite ['{}', [_ah_desc]];
+				db_CreateField [mdb_new_key, db_field_name,  		'float' ];
+			endloop;				 
+		endloop; 
+
+		
+		//  WRITES EVERYTHING INTO THE OUTPUT DB
+		local entry_key;
+
+		for db_entry in db_entries loop
+			mol_name     = cat db_entry(1);
+			//print mol_name;
+			_r_aKeys     = db_entry(2);
+			_l_aKeys     = db_entry(3);
+			//print _l_aKeys;
+			desc_L     = db_entry(4);
+			//print desc_L;
+			desc_AA = db_entry(5);
+			//print desc_AA;
+			activity     = db_entry(6);
+			//print activity;
+			entry_key    = db_entry(7);	
+			//print entry_key;	
+            desc_R_L_aType = db_entry(8);
+
+			local i, j;
+			
+			local _tags = tags desc_L;
+			local _vals = tagvals desc_L;			
+			
+			for i = 1, length _tags, 1 loop
+				db_field_name = token swrite ['{}', [_tags(i)]];
+				db_field_value = _vals(i);		
+				db_Write [mdb_new_key,entry_key, tag [db_field_name, db_field_value]];		 
+			endloop;
+
+			local _tags_mut = tags desc_AA;
+			_tags = tags second first desc_AA;
+			//print _tags;
+			
+			for i = 1, length _tags_mut, 1 loop				
+				_vals = tagvals second desc_AA(i);
+				//print _vals;
+				for j = 1, length _tags, 1 loop 					
+					db_field_name = token swrite ['{}', [cat mutations(i) , _tags(j)]];
+					//print db_field_name;					
+					db_field_value = _vals(j);
+					//print db_field_value;
+					
+  					db_Write [mdb_new_key,entry_key, tag [db_field_name, db_field_value]];						
+				endloop;
+			endloop;
+
+			_tags = tags desc_R_L_aType;
+			_vals = tagvals desc_R_L_aType;			
+			
+			for i = 1, length _tags, 1 loop
+				db_field_name = token swrite ['{}', [_tags(i)]];
+				db_field_value = _vals(i);		
+				db_Write [mdb_new_key,entry_key, tag [db_field_name, db_field_value]];		 
+			endloop;
+			
+		endloop;
+	
+	dbv_OpenFile [file_to_open, 0];              	 	     	  							// opens a database viewer
+
+//  FLUSH ALL THE HANDLES
+	db_Flush mdb_new_key;                           	   	  							// writes new database to the disk
+	db_Close mdb_new_key; 	
+	db_Close mdb_key    ; 
+endfunction
+
