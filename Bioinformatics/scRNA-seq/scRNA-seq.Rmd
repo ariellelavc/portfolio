@@ -1,0 +1,342 @@
+---
+title: "scRNA-seq"
+author: "Lavinia Carabet"
+date: "08/26/2021"
+output: 
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Loading
+
+Read the 10X Genomics PMBC scRNA-seq expression sample data stored in the raw_feature_bc_matrix directory, using the Seurat package.
+
+For downloading the data use `scRNA-seq.ipynb`
+
+The data encompasses:
+
+* one barcode file (barcodes.tsv.gz),
+* one feature file (features.tsv.gz), and
+* one expression matrix file (matrix.mtx.gz)
+
+```{r, message=FALSE, warning=FALSE}
+#install.packages("Seurat")
+```
+```{r, message=FALSE, warning=FALSE}
+library(Seurat)
+
+data.dir <- 'raw_feature_bc_matrix/'
+list.files(data.dir)
+
+pbmc <- Read10X(data.dir = data.dir)
+pbmc[1:10, 1:5]
+ 
+pbmc <- CreateSeuratObject(counts = pbmc, min.cells = 3, min.features = 30)
+pbmc
+```
+```{r}
+# number of features and cells in the active assay
+dim(pbmc)
+head(rownames(pbmc)) # features
+head(colnames(pbmc)) # cells
+# specific assay
+names(pbmc)
+# pulling specific Assay
+pbmc[['RNA']]
+
+GetAssayData(pbmc)[1:10, 7:10]
+
+# cell-level metadata data frame
+colnames(pbmc[[]])
+head(x = pbmc[[c('nCount_RNA', 'nFeature_RNA')]])
+```
+## Data Preprocessing Workflow
+
+### 1. Quality Control (QC) and Cell Filtering
+
+QC metrics
+
+* check for empty droplets that can lead to few detected genes, `nFeature_RNA`.
+`nFeature_RNA` is the number of genes detected in each cell. `Low nFeature_RNA` for a cell indicates that it may be dead/dying or an empty droplet
+
+* check for cell doublets or multiplets that can lead to abnormally high gene count, `nCount_RNA`.
+`nCount_RNA` is the total number of molecules detected within a cell. `High nCount_RNA` indicates that a cell may be a doublet (or multiplet)
+
+* check for extensive mitochondrial contamination due to cell debris and dying cells, computed percentage of transcripts that map to mitochondrial genes `percent_mt`. Filter out low-quality cells having `high percent_mt`, high percent of counts originating from the set of mitochondial genes (features) starting with `MT-`
+
+```{r}
+# compute the percentage of transcripts that map to mitochondrial genes
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+head(pbmc[[]])
+```
+
+Visualize the distribution of the parameters
+```{r}
+# visualize QC metrics as a violin plot
+VlnPlot(pbmc, features = c('nFeature_RNA','nCount_RNA', 'percent.mt'), ncol = 3)
+```
+```{r, fig.width=12, fig.height=4}
+# visualize feature-feature relationships using FeatureScatter
+# Pearson correlation between two features displayed above the plot
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot1 + plot2
+```
+Filter cells
+- with less than 200 unique gene/feature counts
+- with greater than 25000 unique molecular identified (UMI) feature counts per cell
+- with greater than 15% mitochondrial counts
+```{r}
+pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nCount_RNA < 25000 & percent.mt < 15)
+```
+### 2. Data Normalization
+
+`LogNormalize` method normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result
+```{r}
+pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
+```
+```{r}
+# normalized data
+pbmc[["RNA"]]@data[1:10, 1:5]
+```
+### 3. Feature Selection
+
+`FindVariableFeatures` function to compute a subset of features that exhibit high cell-to-cell variation in the dataset (high/low expression in various cells) for downstream analysis
+```{r}
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
+
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(pbmc), 10)
+```
+```{r, message=FALSE, warning=FALSE}
+# plot variable features 
+plot1 <- VariableFeaturePlot(pbmc)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE, xnudge = 0, ynudge = 0)
+plot2
+```
+
+### 4. Data Scaling
+
+`ScaleData` function to linearly transform the data by shifting and scaling the expression of each gene to mean expression 0 and variance 1 across all cells, giving equal weights to genes so that highly-expressed genes do not dominate in downstream analyses
+```{r}
+pbmc <- ScaleData(pbmc, features = rownames(pbmc))
+# scaled data
+pbmc[["RNA"]]@scale.data[1:10, 1:5]
+```
+## Dimensionality Reduction
+
+### Linear Principal Component Analysis
+
+`RunPCA` using only the 2000 selected and scaled highly variable features (out of 15262 total features)
+```{r}
+pbmc <- RunPCA(pbmc, features = VariableFeatures(pbmc))
+```
+Examine the PCA results beyond defaults (ndims.print = 10 instead of 5 out of total npcs =50 computed, nfeatures.print = 10 instead of 30)
+```{r}
+print(pbmc[["pca"]], dims = 1:10, nfeatures = 10)
+```
+
+Visualize PCA results
+```{r, fig.height=6, fig.width=10}
+VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
+```
+```{r, fig.height=10, fig.width=10}
+DimHeatmap(pbmc, dims = 1:9, cells = 200, balanced = TRUE)
+```
+
+### Dimensionality Selection 
+
+`ElbowPlot` function ranking of principle components based on the percentage of variance explained by each one
+```{r, fig.height=4, fig.width=6}
+ElbowPlot(pbmc)
+```
+`JackStraw` procedure for identifying significant PCs having a strong enrichment of features with low p-values 
+```{r}
+pbmc <- JackStraw(pbmc, num.replicate = 100)
+pbmc <- ScoreJackStraw(pbmc, dims = 1:20)
+```
+
+```{r, message=FALSE, warning=FALSE, fig}
+# comparing the distribution of p-values for each PC (solid curves) 
+# with a uniform distribution (dashed line)
+JackStrawPlot(pbmc, dims = 1:20, cols = DiscretePalette(20, "polychrome"), ymax = 1, xmax=1)
+```
+
+## Cluster Analysis
+
+Cluster cells based on their expression pattern by first constructing a KNN graph based on the euclidean distance in PCA space using the `FindNeighbors` function with the first 10 most significant principal components PCs as input, and then iteratively group cells together using `FindClusters` function that implements Louvain modularity optimization.
+```{r}
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(pbmc, resolution = 0.5)
+```
+
+Cluster IDs for the first 5 cells
+```{r}
+head(Idents(pbmc), 5)
+```
+
+## t-SNE Non-linear Dimensionality Reduction
+
+t-Distributed Stochastic Neighbor Embedding (t-SNE) aims to learn the underlying manifold of the data in order to place similar cells together in low-dimensional space.  Cells within the graph-based clusters should co-localize on dimension reduction plots.
+`RunTSNE` function using same PCs as input as for cell clustering
+```{r}
+pbmc <- RunTSNE(pbmc, dims = 1:10, tsne.method = "Rtsne")
+```
+
+### Visualize scRNA-seq cell clusters using t-SNE
+
+using `TSNEPlot` function or `DimPlot` function
+```{r}
+TSNEPlot(pbmc, label = TRUE)
+#DimPlot(pbmc, reduction = "tsne", label = TRUE)
+```
+### Visualize number of detected genes (nFeature_RNA) and number of UMIs (nCount_RNA) on t-SNE 
+```{r, fig.height=3, fig.width=8}
+ FeaturePlot(pbmc, features = c("nFeature_RNA", "nCount_RNA"), 
+             cols = c("grey", "lightblue"), pt.size = 0.5, reduction = "tsne")
+```
+
+## Save the Seurat object
+```{r}
+names(pbmc)
+saveRDS(pbmc, file = "./output/pbmc_out.rds")
+```
+## Identify Cluster Biomarkers via Differentially Expressed Features 
+
+`FindAllMarkers` function finds biomarkers for each cluster compared to all remaining cells, reporting both positive and negative markers by default.
+
+It supports a number of differential expression (DE) tests through `test.use` argument:
+
+* `wilcox` : Wilcoxon rank sum test (default)
+
+* `bimod` : Likelihood-ratio test for single cell feature expression
+
+* `roc` : Standard AUC classifier
+
+* `t` : Student’s t-test
+
+* `poisson` : Likelihood ratio test assuming an underlying negative binomial distribution. Use only for UMI-based datasets
+
+* `negbinom` : Likelihood ratio test assuming an underlying negative binomial distribution. Use only for UMI-based datasets
+
+* `LR` : Uses a logistic regression framework to determine differentially expressed genes. Constructs a logistic regression model predicting group membership based on each feature individually and compares this to a null model with a likelihood ratio test.
+
+* `MAST` : Model-based Analysis of Single-cell Transcriptomics - Generalized Linear Model (GLM)-framework that treats cellular detection rate as a covariate, specially adapted for bimodal and/or zero-inflated single cell gene expression data
+
+* `DESeq2` : DE based on a model using the negative binomial distribution
+
+### Wilcox test
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+```
+```{r}
+pbmc.markers.wilcox <- FindAllMarkers(pbmc, only.pos=FALSE, test.use = "wilcox", 
+                                      min.pct = 0.25, logfc.threshold = 0.25)
+head(pbmc.markers.wilcox)
+top10.per.cluster <- pbmc.markers.wilcox %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+top10.per.cluster
+```
+### ROC test
+
+Returns the `classification power` for any individual biomarker (ranging from 0 - random, to 1 - perfect)
+```{r}
+pbmc.markers.roc <- FindAllMarkers(pbmc, logfc.threshold = 0.25, min.pct = 0.25,
+                                   test.use = "roc", only.pos = FALSE)
+head(pbmc.markers.roc)
+top10.per.cluster.roc <- pbmc.markers.roc %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+top10.per.cluster.roc
+```
+### DESeq2 test
+
+```{r, message=FALSE, warning=FALSE}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2")
+```
+
+```{r}
+pbmc.markers.deseq2 <- FindAllMarkers(pbmc, logfc.threshold = 0.25, min.pct = 0.25, 
+                                      test.use = "DESeq2", only.pos = FALSE, max.cells.per.ident = 100)
+head(select(pbmc.markers.deseq2, -cluster))
+```
+
+### Visualize top10 Wilcox DE biomarkers for each cluster as an expression heatmap
+
+```{r, fig.height=10, fig.width=10}
+DoHeatmap(pbmc, features = top10.per.cluster$gene) 
+```
+
+## Visualize top10 ROC biomarkers for each cluster as an expression heatmap
+
+```{r, fig.height=10, fig.width=10}
+DoHeatmap(pbmc, features = top10.per.cluster.roc$gene) 
+```
+
+### Visualize expression level of cluster specific genes/features on t-SNE using FeaturePlot
+```{r, fig.height=6, fig.width=8}
+# FeaturePlot(pbmc, 
+#             features = c("CD14", "LYZ", "IL7R", 
+#                          "CCR7", "CST3", "CD8A",
+#                          "MS4A1", "CD79A", "NKG7", 
+#                          "GNLY", "FCGR3A", "PPBP"),
+#             cols = c("grey", "orange"), pt.size = 0.5, reduction = "tsne")
+FeaturePlot(pbmc, 
+            features = c("CD14", "LYZ", "IL7R", "CCR7"),
+            cols = c("grey", "orange"), pt.size = 0.5, reduction = "tsne")
+
+FeaturePlot(pbmc, 
+            features = c("CST3", "CD8A", "MS4A1", "CD79A"),
+            cols = c("grey", "orange"), pt.size = 0.5, reduction = "tsne")
+
+FeaturePlot(pbmc, 
+            features = c("NKG7", "GNLY", "FCGR3A", "PPBP"),
+            cols = c("grey", "orange"), pt.size = 0.5, reduction = "tsne")
+```
+
+### Visualize expression level of top10 most variable genes on t-SNE 
+```{r, fig.height=6, fig.width=8}
+# FeaturePlot(pbmc, 
+#             features = top10,
+#             cols = c("grey", "salmon"), pt.size = 0.5, reduction = "tsne")
+
+FeaturePlot(pbmc, 
+            features = top10[1:4],
+            cols = c("grey", "salmon"), pt.size = 0.5, reduction = "tsne")
+
+FeaturePlot(pbmc, 
+            features = top10[5:8],
+            cols = c("grey", "salmon"), pt.size = 0.5, reduction = "tsne")
+```
+```{r, fig.height=4, fig.width=8}
+FeaturePlot(pbmc, 
+            features = top10[9:10],
+            cols = c("grey", "salmon"), pt.size = 0.5, reduction = "tsne")
+```
+
+## Assign Cell Type Identity to Clusters
+```{r}
+clusters <- levels(pbmc)
+markers <- c("CD14", "IL7R", "CCR7", "CST3", "CD8A", "MS4A1", "CD79A", "NKG7")
+cell.types <- c("CD14+ Mono", "Memory CD4+ T", "Naive CD4+ T", "DC", "CD8+ T", "B", "B-like", "NK" )
+cluster.celltype.mapping <- as_tibble(cbind(clusters, markers, cell.types))
+cluster.celltype.mapping
+names(cell.types) <- clusters
+
+
+pbmc.final <- RenameIdents(pbmc, cell.types)
+DimPlot(pbmc.final, reduction = "tsne", label = TRUE, pt.size = 1) + NoLegend()
+```
+
+```{r}
+saveRDS(pbmc, file = "./output/pbmc_final_out.rds")
+```
+
+
+```{r}
+sessionInfo()
+```

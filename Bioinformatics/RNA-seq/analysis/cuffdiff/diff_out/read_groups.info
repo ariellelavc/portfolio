@@ -1,0 +1,7 @@
+file	condition	replicate_num	total_mass	norm_mass	internal_scale	external_scale
+../tophat/T_SRR5272677_thout/accepted_hits.bam	T	0	5.1717e+07	5.21014e+07	1.05433	1
+../tophat/T_SRR5272678_thout/accepted_hits.bam	T	1	5.82007e+07	5.21014e+07	1.14616	1
+../tophat/T_SRR5272679_thout/accepted_hits.bam	T	2	4.12778e+07	5.21014e+07	0.789822	1
+../tophat/U_SRR5272674_thout/accepted_hits.bam	U	0	4.47102e+07	5.21014e+07	0.824518	1
+../tophat/U_SRR5272675_thout/accepted_hits.bam	U	1	5.43622e+07	5.21014e+07	1.00988	1
+../tophat/U_SRR5272676_thout/accepted_hits.bam	U	2	6.7322e+07	5.21014e+07	1.28289	1

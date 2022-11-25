@@ -1,0 +1,6 @@
+T_SRR5272677_clout/transcripts.gtf
+T_SRR5272678_clout/transcripts.gtf
+T_SRR5272679_clout/transcripts.gtf
+U_SRR5272674_clout/transcripts.gtf
+U_SRR5272675_clout/transcripts.gtf
+U_SRR5272676_clout/transcripts.gtf

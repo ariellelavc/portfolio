@@ -1,0 +1,176 @@
+#' ---
+#' title: "Chromosomal Instability Index Analysis"
+#' author: "Lavinia Carabet"
+#' output: 
+#'   pdf_document: default
+#'   html_document: default
+#' ---
+#' 
+## ----setup, include=FALSE------------------------------------------------------------------------------------------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE)
+
+#' 
+#' ## Chromosomal Instability Index (CIN) Analysis
+#' 
+#' CIN Analysis - Quantitative characterization of genome-wide copy number alterations as a measure of chromosomal instability at chromosome and cytoband levels between groups of patients
+#' 
+#' Case study: Colorectal Cancer (CRC)
+#' 
+#' Design: 38 Stage II CRC tissue samples, 15 with and 23 without relapse of tumor
+#' 
+#' Platform: Agilent Human Genome Comparative Genomic Hybridization (CGH) microarray
+#'           aCGH - compares patients's genomes against a reference genome, identifies their differences and 
+#'           locates regions of genomic imbalances in patients
+#'           
+#' 
+#' Dataset: GEO GSE17181 <https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE17181>
+#' 
+#' ## Clinical cohort selection
+#' 
+#' Prior to analysis clinical cohorts are selected based on the desired criteria, 
+#' here having Event indicator for Disease Free Survival (EVENT_DFS) as outcome.
+#' 
+#' In other words, creating two groups:
+#' 
+#' - Relapse patients with Disease free survival as EVENT
+#' - Relapse free patients with Disease free survival as CENSORING
+#' 
+## ------------------------------------------------------------------------------------------------------------------------------------------------------------
+clinical.dat <- read.csv('./CRC_BROSEN_2010_01_CLINICAL_DATA.csv', header = T)
+
+relapse.group <- clinical.dat[clinical.dat$EVENT_DFS == "EVENT",]
+relapse.group
+
+relapse.free.group <- clinical.dat[clinical.dat$EVENT_DFS == 'CENSORING',]
+relapse.free.group
+
+
+#' 
+#' ## Load chromosome-level CIN data matrix for analysis
+#' 
+## ------------------------------------------------------------------------------------------------------------------------------------------------------------
+load("CRC_BROSENS_2010_01_CIN_CHROMOSOMES.Rda")
+
+# dataMatrix - chromosome-level CIN matrix, each row is a chromosome, each column is a sample(patient)
+dataMatrix[,1:3]
+
+allids <- dimnames(dataMatrix)[[2]]
+
+# relapse group IDs
+grp1ids <-  allids[1:15]
+# relapse free group IDs
+grp2ids <- allids[16:38]
+
+sampleGrp1Len <- length(grp1ids)
+sampleGrp2Len <- length(grp2ids)
+
+## clinical.inf: n*2 matrix, the 1st column is 'sample name', the second is 'label'
+clinical.inf <- as.matrix( cbind( dimnames(dataMatrix)[[2]], 
+                                  c( rep('Relapse Free', sampleGrp2Len), 
+                                     rep('Relapse',sampleGrp1Len ) ) ) )
+clinical.inf
+
+#' 
+#' ## CIN Chromosome level analysis
+#' 
+## ---- fig.height=8, fig.width=8------------------------------------------------------------------------------------------------------------------------------
+source("getSubmatrix.R")
+cinInputMatrix <- getSubmatrix.twogrps(dataMatrix, grp2ids, grp1ids)
+
+source("heatmap.draw.R")
+heatmap.draw(cinInputMatrix, clinical.inf)
+
+#' 
+#' ## CIN Cytoband level analysis
+#' 
+## ------------------------------------------------------------------------------------------------------------------------------------------------------------
+load("CRC_BROSENS_2010_01_CIN_CYTOBANDS.Rda")
+
+# dataMatrix - cytoband-level CIN matrix, each row is a cytoband, each column is a sample(patient)
+head(dataMatrix[,1:3],20)
+tail(dataMatrix[,1:3],20)
+
+allids <- dimnames(dataMatrix)[[2]]
+
+grp1ids <-  allids[1:15]
+grp2ids <- allids[16:38]
+
+sampleGrp1Len <- length(grp1ids)
+sampleGrp2Len <- length(grp2ids)
+
+## clinical.inf: n*2 matrix, the 1st column is 'sample name', the second is 'label'
+clinical.inf <- as.matrix( cbind( dimnames(cinInputMatrix)[[2]], 
+                                  c( rep('Relapse Free', sampleGrp2Len), 
+                                     rep('Relapse',sampleGrp1Len ) ) ) )
+clinical.inf
+
+#' 
+## ---- fig.height=8, fig.width=8------------------------------------------------------------------------------------------------------------------------------
+cinInputMatrix <- getSubmatrix.twogrps(dataMatrix, grp2ids, grp1ids)
+
+load("hg18_annot.Rda")                  # load reference genome, human genome 18 data frame
+annotInputMatrix <- hg18_annot          # each row corresponds to a cytoband
+head(annotInputMatrix,5)                # columns: "chrom", "start", "end", "name", and "stain"
+
+source("cytobands_cin.draw.R")
+#for (i in 1:22) {
+for (chr in c(4,18)) {
+  cytobands_cin.draw(cinInputMatrix, clinical.inf, chr, annotInputMatrix, 
+                     title_text = paste('chromosome',chr,'cytobands CIN overview'))
+}
+
+#' 
+#' Above are the results of CIN analysis showing cumulative instabilities (losses and gains) at chromosome and 
+#' cytoband levels with more instabilities in the relapsed group compared to relapse-free in chromosomes 4 and 18 
+#' 
+#' ## Downstream T-test Cytoband-level Differential Analysis
+#' 
+#' CRC_BROSENS_2010_01_CIN_CYTOBANDS.Rda cytoband CIN data and groups above
+#' 
+## ------------------------------------------------------------------------------------------------------------------------------------------------------------
+# function to calculate Student’s two-sample t-test on all cytobands
+# function returns the p-value for the test
+# NAs are removed for each test
+
+t.test.all.cyt <- function(x,s1,s2) {
+	x1 <- x[s1]
+	x2 <- x[s2]
+	x1 <- as.numeric(x1)
+	x2 <- as.numeric(x2)
+	t.out <- t.test(x1, x2, alternative='two.sided', var.equal = TRUE)
+	out <- as.numeric(t.out$p.value)
+	return(out)
+}
+
+t.test.run <- apply(cinInputMatrix, 1, t.test.all.cyt, s1=grp1ids, s2=grp2ids)
+
+# calculate means of the groups 
+grp1.mean <- apply(cinInputMatrix[,grp1ids], 1, mean, na.rm = T)
+grp2.mean <- apply(cinInputMatrix[,grp2ids], 1, mean, na.rm = T)
+
+# calculate fold change
+fold.change <- grp1.mean - grp2.mean 
+#range(fold.change)
+
+#Build data frame with p-value and fold information
+ds.featured.cyt <- cbind(t.test.run, fold.change)
+
+# Select cytobands with significance alpha=0.05 and fold.change = 1
+featured.sel.cyt <- (t.test.run < 0.05) & ((fold.change < -log2(1)) | (fold.change > log2(1)))
+
+#Filters data frame with featured selection cytobands found
+diff.changed.cyt <- ds.featured.cyt[featured.sel.cyt,]
+
+#Orders data frame by fold change
+diff.changed.cyt <- diff.changed.cyt[order(diff.changed.cyt[,2], decreasing = T),]
+diff.changed.cyt
+
+#' 
+#' The follow-up T-test differential analysis at cytoband-level showed that the most differentially changed cytobands are in chromosomes 4 and 18 (as well as 3), correlating with results from the literature.
+#' 
+#' Chromosomal instability in 4q arm (4q22.2-35.2) has been previously reported to be associated with local recurrence in colon cancer and worst outcomes in stage II CRC patients. 
+#' 
+#' In addition, the cytoband region 18q21.2 contains Deleted in Colorectal Carcinoma (DCC) gene where frequent loss of heterozygosity (LOH) events in colon cancer occur, as per OMIM (Online Mendelian Inheritance in man). 
+#' 
+#' 
+#' 

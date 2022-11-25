@@ -1,0 +1,39 @@
+SAMPLE_ID,AGE,CANCER_DEATH,DISEASE_FREE_SURVIVAL_MON,DISEASE_LOCALIZATION,EVENT_DFS,EVENT_OS,GENDER,HIST_TUMOR_GRADE,OVERALL_SURVIVAL_MONTHS,PTNM_T,TUMOR_STAGE,PATIENT_ID
+GSM426590,90.1,YES,1.58,Sigmoid colon,EVENT,EVENT,FEMALE,Well differentiated,1.6,T3 - Size and/or extent of the primary tumor,Stage II,8
+GSM426578,70.9,YES,2.11,Transverse colon,EVENT,EVENT,MALE,Poorly differentiated,7.8,T3 - Size and/or extent of the primary tumor,Stage II,34
+GSM426567,77.4,YES,7.86,Coecum,EVENT,EVENT,MALE,Moderately differentiated,10.7,T3 - Size and/or extent of the primary tumor,Stage II,21
+GSM426561,90.6,YES,9.11,Coecum,EVENT,EVENT,FEMALE,Poorly differentiated,14.5,T3 - Size and/or extent of the primary tumor,Stage II,14
+GSM426562,84.9,NO,10.53,Transverse colon,EVENT,EVENT,FEMALE,Poorly differentiated,17.3,T3 - Size and/or extent of the primary tumor,Stage II,15
+GSM426581,73.9,YES,13.72,Hepatic Flexure,EVENT,EVENT,MALE,Moderately differentiated,25.6,T2 - Size and/or extent of the primary tumor,Stage II,39
+GSM426565,78.8,YES,14.51,Coecum,EVENT,EVENT,MALE,Moderately differentiated,15.8,T3 - Size and/or extent of the primary tumor,Stage II,18
+GSM426592,81.1,YES,16.02,Coecum,EVENT,EVENT,FEMALE,Moderately differentiated,16,T3 - Size and/or extent of the primary tumor,Stage II,10
+GSM426582,65.2,YES,16.18,Hepatic Flexure,EVENT,EVENT,MALE,Moderately differentiated,22.3,T3 - Size and/or extent of the primary tumor,Stage II,40
+GSM426570,77.2,NO,21.02,Sigma and Rectum,EVENT,EVENT,FEMALE,Moderately differentiated,21,T3 - Size and/or extent of the primary tumor,Stage II,26
+GSM426560,73.5,YES,21.32,Coecum,EVENT,EVENT,FEMALE,Moderately differentiated,22.3,T3 - Size and/or extent of the primary tumor,Stage II,13
+GSM426577,79.8,YES,22.99,Ascending colon,EVENT,EVENT,MALE,Moderately differentiated,32,T3 - Size and/or extent of the primary tumor,Stage II,33
+GSM426571,63.3,YES,36.55,Sigmoid colon,EVENT,EVENT,FEMALE,Moderately differentiated,37.2,T3 - Size and/or extent of the primary tumor,Stage II,27
+GSM426575,75.1,YES,38.49,Coecum,EVENT,EVENT,FEMALE,Moderately differentiated,45.9,T3 - Size and/or extent of the primary tumor,Stage II,31
+GSM426591,63.8,YES,59.21,Sigma and Rectum,EVENT,EVENT,FEMALE,Moderately differentiated,59.2,T3 - Size and/or extent of the primary tumor,Stage II,9
+GSM426586,81.5,NO,155,Sigmoid colon,CENSORING,CENSORING,MALE,Moderately differentiated,155,T3 - Size and/or extent of the primary tumor,Stage II,46
+GSM426585,70.7,NO,143.45,Sigma and Rectum,CENSORING,CENSORING,MALE,Moderately differentiated,143.5,T3 - Size and/or extent of the primary tumor,Stage II,44
+GSM426584,48.5,NO,143.49,Coecum,CENSORING,CENSORING,MALE,Moderately differentiated,143.5,T3 - Size and/or extent of the primary tumor,Stage II,43
+GSM426583,73.4,NO,151.12,Ascending colon,CENSORING,CENSORING,FEMALE,Well differentiated,151.1,T3 - Size and/or extent of the primary tumor,Stage II,42
+GSM426580,55.1,NO,55.66,Coecum,CENSORING,CENSORING,MALE,Moderately differentiated,55.7,T3 - Size and/or extent of the primary tumor,Stage II,36
+GSM426579,54.3,NO,148.65,Hepatic Flexure,CENSORING,CENSORING,FEMALE,Well differentiated,148.7,T2 - Size and/or extent of the primary tumor,Stage II,35
+GSM426576,89.9,YES,0.69,Coecum,CENSORING,EVENT,FEMALE,Moderately differentiated,0.7,T3 - Size and/or extent of the primary tumor,Stage II,32
+GSM426574,85.9,NO,109.08,Descending Colon,CENSORING,EVENT,MALE,Moderately differentiated,109.1,T3 - Size and/or extent of the primary tumor,Stage II,30
+GSM426573,75.6,NO,0.53,Sigmoid colon,CENSORING,EVENT,MALE,Moderately differentiated,0.5,T3 - Size and/or extent of the primary tumor,Stage II,29
+GSM426572,77,NO,131.68,Hepatic Flexure,CENSORING,CENSORING,FEMALE,Moderately differentiated,131.7,T4 - Size and/or extent of the primary tumor,Stage II,28
+GSM426569,74.2,NO,121.84,Coecum,CENSORING,CENSORING,FEMALE,Moderately differentiated,121.8,T2 - Size and/or extent of the primary tumor,Stage II,25
+GSM426568,62.1,NO,66.48,Sigmoid colon,CENSORING,CENSORING,FEMALE,Moderately differentiated,66.5,T2 - Size and/or extent of the primary tumor,Stage II,24
+GSM426566,58.3,NO,90.79,Sigma and Rectum,CENSORING,CENSORING,MALE,Moderately differentiated,90.8,T3 - Size and/or extent of the primary tumor,Stage II,20
+GSM426564,80.4,NO,133.42,Ascending colon,CENSORING,CENSORING,FEMALE,Poorly differentiated,133.4,T3 - Size and/or extent of the primary tumor,Stage II,17
+GSM426563,58.9,NO,61.05,Transverse colon,CENSORING,CENSORING,MALE,Moderately differentiated,61.1,T3 - Size and/or extent of the primary tumor,Stage II,16
+GSM426594,69.5,NO,119.05,Left Flexure,CENSORING,CENSORING,MALE,Moderately differentiated,119,T3 - Size and/or extent of the primary tumor,Stage II,12
+GSM426593,81.9,NO,81.81,Coecum,CENSORING,EVENT,FEMALE,Moderately differentiated,81.8,T3 - Size and/or extent of the primary tumor,Stage II,11
+GSM426589,69.9,NO,124.87,Sigma and Rectum,CENSORING,CENSORING,MALE,Moderately differentiated,124.9,T3 - Size and/or extent of the primary tumor,Stage II,7
+GSM426588,69.1,NO,123.78,Sigmoid colon,CENSORING,EVENT,FEMALE,Moderately differentiated,123.8,T3 - Size and/or extent of the primary tumor,Stage II,6
+GSM426587,69.7,NO,10.46,Left Flexure,CENSORING,EVENT,FEMALE,Moderately differentiated,10.5,T4 - Size and/or extent of the primary tumor,Stage II,5
+GSM426559,79.8,NO,55.43,Coecum,CENSORING,CENSORING,FEMALE,Moderately differentiated,55.4,T3 - Size and/or extent of the primary tumor,Stage II,4
+GSM426558,72.3,NO,116.02,Coecum,CENSORING,CENSORING,MALE,Moderately differentiated,116,T3 - Size and/or extent of the primary tumor,Stage II,2
+GSM426557,74.1,NO,38.78,Transverse colon,CENSORING,CENSORING,MALE,Poorly differentiated,38.8,T3 - Size and/or extent of the primary tumor,Stage II,1

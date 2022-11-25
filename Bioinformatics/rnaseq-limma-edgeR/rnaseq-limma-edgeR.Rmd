@@ -1,0 +1,363 @@
+---
+title: "RNA-seq edgeR limma "
+author: "LAC"
+date: "2022-10-13"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+RNA-seq data analysis workflow using **edgeR** package to import, organize, filter and normalize data, followed by the **limma** package with the *voom* method, linear modeling and empirical Bayes moderation to assess differential expression. The **Glimma** package can be used in addition to enable interactive exploration of the results at both sample and gene-level.
+
+## 1. Set-up
+
+```{r, message = FALSE}
+library("limma")
+library("Glimma")
+library("edgeR")
+library("Homo.sapiens")
+#library("DEFormats")
+
+library("airway")
+library("gplots")
+library("RColorBrewer")
+```
+
+## 2. Data loading and organization
+
+Data used in this workflow come from the Bioconductor *airway* package that summarizes an RNA-seq experiment (i.e. a *RangedSummarizedExperiment* object of RNA-seq gene read counts) wherein each of 4 primary human airway smooth muscle (ASM) cell lines were treated with dexamethasone (1 $\mu$M; 18 hrs) - a synthetic potent glucocorticoid steroid with anti-inflammatory effects used as medication for individuals with asthma to reduce the inflammation of the airways, or left untreated.
+
+[GEO GSE52778](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE52778) Illumina HiSeq 2000 (Homo sapiens) platform
+
+```{r}
+data(airway)
+airway
+```
+The **assay** component of the *RangedSummarizedExperiment* object contains the count matrix.
+
+-  **rownames** - genes
+
+-  **colnames** - samples
+
+The **colData** contains sample information.
+
+```{r}
+head(assay(airway))
+```
+
+```{r}
+as.data.frame(colData(airway))
+```
+### 2.1 Convert the RangedSummarizedExperiment object to DGEList object
+
+Using the **edgeR::SE2DGEList** function, the counts of the assay component of the input RangedSummarizedExperiment data object is extracted and used as the counts component of the output DGEList object. 
+
+The rowRanges or rowData of the input is converted into a data.frame and used as genes in the output. 
+
+The colData of the input is also converted into a data.frame and used as the sample information in the output.
+
+DGEList object holds the dataset to be analysed by edgeR and the subsequent calculations performed on the dataset.
+
+Specifically it contains:
+
+column        | description
+------------- | -------------
+counts        | numeric matrix containing the read counts
+lib.size      | numeric vector containing the total count (seq depth) to normalize against for each sample 
+norm.factors  | numeric vector containing normalization factors that modify library sizes
+group         | vector giving the experimental group/condition for each sample/library
+
+```{r}
+dge <- edgeR::SE2DGEList(airway)
+dim(dge)
+```
+```{r}
+dge$samples
+head(rownames(dge)) # genes
+head(dge$counts)
+```
+### 2.2 Assign the experimental group/condition for each sample
+
+```{r}
+dge$samples$group <- dge$samples$dex
+dge$samples
+```
+### 2.3 Annotate the genes: ENSEMBL to ENTREZ using the Homo.sapiens library
+
+```{r, message=FALSE}
+geneid <- rownames(dge)
+genes <- select(Homo.sapiens, keys=geneid, columns=c("ENTREZID", "SYMBOL", "TXCHROM"),
+                keytype="ENSEMBL")
+head(genes)
+dim(genes)
+```
+Remove duplicated gene IDs
+
+```{r}
+genes <- genes[!duplicated(genes$ENSEMBL),]
+dim(genes)
+```
+### 2.4 Package the DGEList object to contain raw count data, associated sample information and gene annotations
+
+```{r}
+dge$genes <- genes
+dge
+```
+## 3. Data pre-processing
+
+### 3.1 CPM (counts per million) and log-CPM transformations from raw-scale
+
+Transform raw counts onto a scale that accounts for library size differences using the **cpm** function from edgeR.
+RPKM or FPKM transformations can also be used to account for gene length differences.
+Use CPM as here the differential expression analysis looks for gene expression changes between conditions, and not changes in gene lengths that may be of interest in comparing expression across multiple genes, for instance.
+```{r}
+avg_lib_size <- mean(dge$samples$lib.size) * 1e-6 #million
+avg_lib_size
+median_lib_size <- median(dge$samples$lib.size) * 1e-6 #million
+median_lib_size
+
+cpm <- edgeR::cpm(dge)
+lcpm <- edgeR::cpm(dge, log = TRUE)
+summary(lcpm)
+```
+
+### 3.2 Filter lowly expressed genes
+
+**filterByExpr** function determines which genes have sufficiently large counts to be retained in a statistical analysis. 
+
+The function keeps genes with about 10 read counts or more in a minimum number of samples, where the number of samples is chosen according to the minimum group sample size.
+```{r}
+# number of genes unexpressed across all 8 sample 
+table(rowSums(dge$counts==0)==8)
+
+# automated gene filtering with filterByExpr keeping as many genes as possible with worthwhile counts
+keep.exprs <- edgeR::filterByExpr(dge, group=dge$samples$group)
+dge <- dge[keep.exprs,,keep.lib.sizes=FALSE]
+dim(dge)
+dge
+```
+```{r}
+lcpm.cutoff <- log2(10/median_lib_size + 2/avg_lib_size)
+
+samplenames <- colnames(dge)
+nsamples <- ncol(dge)
+col <- brewer.pal(nsamples, "Paired")
+par(mfrow=c(1,2))
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.26), las=2, main="", xlab="")
+title(main="Raw data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+
+for (i in 2:nsamples){
+  den <- density(lcpm[,i])
+  lines(den$x, den$y, col=col[i], lwd=2)
+}
+legend("topright", samplenames, text.col=col, bty="n")
+
+lcpm <- cpm(dge, log=TRUE)
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.26), las=2, main="", xlab="")
+title(main="Filtered data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+
+for (i in 2:nsamples){
+  den <- density(lcpm[,i])
+  lines(den$x, den$y, col=col[i], lwd=2)
+}
+legend("topright", samplenames, text.col=col, bty="n")
+```
+
+### 3.3 Normalizing gene expression distributions
+
+Calculate scaling factors to convert raw library sizes into effective library sizes with the **calcNormFactors** using the TMM method implements the trimmed mean of M-values (TMM) method.
+
+The effective library sizes for use in downstream analysis are `lib.size` ${*}$ `norm.factors` where lib.size contains the original library sizes and norm.factors is the vector of scaling factors computed by this function.
+
+The calculated normalization factors, `norm.factors` are used as scaling factors for library sizes and are automatically stored in `dge$samples$norm.factors` when working with DGEList objects.
+
+Normalization is required to ensure that the expression distributions of each sample are similar across the entire experiment. The density plot for the filtered data above (right plot) shows that the distributions of log-CPM values are similar throughout all samples within the dataset. So, the effect of TMM normalization is mild as the magnitude of the scaling factors are all relatively close to 1.  
+```{r}
+dge <- calcNormFactors(dge, method = "TMM")
+dge$samples$norm.factors
+```
+
+```{r}
+lcpm <- cpm(dge, log=TRUE)
+boxplot(lcpm, las=2, col=col, main="")
+title(main="Normalized data",ylab="Log-cpm")
+```
+
+### 3.4 Unsupervised clustering of samples
+
+Exploratory data analysis and visualization using multi-dimensional scaling (MDS) unsupervised technique and plotting using the **plotMDS** function in the **limma** package.
+
+Used to glean insights into the extent to which differential expression can be detected before carrying out formal tests.
+
+The plot shows similarities and dissimilarities between samples with well separated clusters between conditions. The first dimension represents the leading-fold-change that best separates samples and explains the largest proportion of variation in data, with subsequent orthogonal dimensions having a smaller effect. 
+```{r}
+limma::plotMDS(lcpm, labels=dge$samples$group, col=as.numeric(dge$samples$group)+1)
+title(main="Sample groups")
+```
+
+Interactive MDS plots with Glimma package
+
+```{r}
+glMDSPlot(lcpm, groups = dge$samples$group, launch = FALSE)
+```
+
+[Link to interactive MDS plot](./glimma-plots/MDS-Plot.html) 
+
+## 4. Differential Expression Analysis
+
+To assess differential expression between the treated and untreated conditions, the **limma** package with the *voom* method, linear modeling and empirical Bayes moderation are used. 
+
+The **voom** (mean-variance modelling at the observational level) method is used to transform/process RNA-seq data prior to linear modeling in limma. It transforms raw count data (in the DGEList object) to log2-counts per million (logCPM), estimates the mean-variance relationship and uses this to compute appropriate observation-level weights. The data are then ready for linear modelling. The function estimates the mean-variance trend for log-counts, then assigns a weight to each observation based on its predicted variance. The weights are then used in the linear modelling process to adjust for non-constant variance in the residuals of the linear model.
+
+With voom transformed RNA-seq raw counts to logCPM with associated precision weights, linear modeling in **limma** is carried out using **lmFit** function which produces a fitted model object containing coefficients, standard errors and residual standard errors for each gene.
+
+**lmFit** has two main arguments, expression data and a design matrix which can be created using **model.matrix** base R function.
+
+To make comparisons of interest once a linear model has been fit using an appropriate design matrix, the **makeContrasts** function is used to form a contrast matrix . The fit and the contrast matrix are then used by **contrasts.fit** to compute fold changes and t-statistics for the comparisons/contrasts of interest: compute all possible pairwise comparisons between treated and untreated reference. 
+
+After fitting the linear model, the standard errors are moderated using an empirical Bayes model generated by the **eBayes** function to obtain more precise estimates of gene-wise variability. A moderated t-statistic and a log-odds of differential expression is computed for each contrast for each gene. 
+
+### 3.1 Creating a design matrix and contrasts
+
+```{r}
+group <- dge$samples$group
+design <- model.matrix(~0+group) # no intercept model
+#design
+colnames(design) <- gsub("group", "", colnames(design))
+design
+```
+```{r}
+contr.matrix <- makeContrasts(
+   trt_vs_untrt = trt-untrt, 
+   levels = colnames(design))
+contr.matrix
+```
+
+### 3.2 Assessing Differential Expression
+
+**voom** first converts the raw counts to logCPM values, adding 0.5 to all the counts to avoid taking the logarithm of zero. If counts is a DGEList object from the edgeR package, then voom will use the normalization factors found in the object when computing the logCPM values. In other words, the logCPM values are computed from the effective library sizes rather than the raw library sizes. The lmFit function is used to fit row-wise linear models. The lowess function is then used to fit a trend to the square-root-standard-deviations as a function of an average log-count measure. The trend line is then used to predict the variance of each logCPM value as a function of its fitted value on the count scale, and the inverse variances become the estimated precision weights.
+
+Count data always show marked mean-variance relationships. Raw counts show increasing variance with increasing count size, while log-counts typically show a decreasing mean-variance trend. 
+
+The plot created within the voom function shows a decreasing trend between the means - the average log2 count for each gene, and quarter-root variances (square-root of standard deviations) which are the rescaled residual variances extracted by the voom function from fitting linear models to log-CPM transformed data.  On the plot, each black dot represents a gene and the red curve shows the estimated mean-variance trend used to compute the voom weights.
+
+voom generated an EList-object v  retains the data frames stored within the DGEList-object that contain gene- and sample-level information: The `v$genes` data frame is equivalent to `dge$genes`, `v$targets` is equivalent to `dge$samples`, and the expression values stored in `v$E` is analogous to `dge$counts`, albeit on a transformed scale. In addition, the voom EList-object has the matrix of computed precision weights `v$weights` and stores the design matrix in `v$design`.
+
+```{r}
+v <- voom(dge, design, plot=TRUE)
+v
+```
+### Final model
+
+Given the linear model fit from **lmFit**, **eBayes** computes moderated t-statistics, moderated F-statistic, and log-odds of differential expression by empirical Bayes moderation of the standard errors squeezing the gene-wise residual variances towards a global value to rank genes in order of evidence for differential expression.
+
+The empirical Bayes moderated t-statistics test each individual contrast equal to zero - test for genes that have true log-fold-changes different from zero. For each gene, the moderated F-statistic tests whether all the contrasts are zero. The F-statistic is an overall test computed from the set of t-statistics for that gene/probe.
+
+**plotSA** function plots the quarter-root variance - the square-root of sigma, the estimated residual standard deviation from **contrasts.fit** function against mean log-CPM value. On the plot, the average log2 residual standard deviation estimated by the empirical Bayes algorithm is marked by a horizontal blue line. 
+
+The variance is no longer dependent on the mean expression level.
+```{r}
+vfit <- lmFit(v, design)
+vfit <- contrasts.fit(vfit, contrasts=contr.matrix)
+efit <- eBayes(vfit)
+plotSA(efit, main="Final model: Mean-variance trend")
+```
+
+### Number of differentially expressed genes
+
+```{r}
+vfit
+```
+**eBayes** produces an object of class MArrayLM containing everything found in **contrasts.fit** `fit` MArrayLM object plus the following added components:
+
+Component | Description
+--------- | -----------------------------
+t	        | numeric matrix of moderated t-statistics.
+p.value	  | numeric matrix of two-sided p-values corresponding to the t-statistics.
+lods	    | numeric matrix giving the log-odds of differential expression (on the natural log scale).
+s2.prior  | estimated prior value for sigma^2. 
+df.prior  | degrees of freedom associated with s2.prior. 
+df.total  | row-wise numeric vector giving the total degrees of freedom associated with the t-statistics for each gene. 
+s2.post	  | row-wise numeric vector giving the posterior values for sigma^2.
+var.prior | column-wise numeric vector giving estimated prior values for the variance of the log2-fold-changes for differentially expressed gene for each contrast. Used for evaluating lods.
+F	        | row-wise numeric vector of moderated F-statistics for testing all contrasts defined by the columns of fit simultaneously equal to zero.
+F.p.value	| row-wise numeric vector giving p-values corresponding to F.
+
+The matrices t, p.value and lods have the same dimensions as the input object `fit`, with rows corresponding to genes and columns to contrasts. The vectors s2.prior, df.prior, df.total, F and F.p.value correspond to rows, with length equal to the number of genes. The vector var.prior corresponds to columns, with length equal to the number of contrasts. If s2.prior or df.prior have length 1, then the same value applies to all genes.
+
+s2.prior, df.prior and var.prior contain empirical Bayes hyperparameters used to obtain df.total, s2.post and lods.
+
+Notes: Empirical Bayes (also known as maximum marginal likelihood) method is a procedure for statistical inference in which the prior probability distribution is estimated from the data before creating a posterior probability distribution. A convenient approach for setting model hyperparameters, that is the priors distribution, instead of fixed values for each parameter in a prior assumption.
+```{r}
+efit
+```
+The number of significantly up- and down-regulated genes can be summaries in a table using the results of the **decideTests** function which performs multiple testing across genes and contrasts and identifies which genes are significantly differentially expressed for each contrast from the eBayes `fit` object containing p-values and test statistics. The function returns an object of class TestResults which is essentially a numeric matrix with elements -1, 0 or 1 depending on whether each t-statistic is classified as significantly negative, not significant or significantly positive. Significance is defined using an adjusted p-value cutoff that is set at 5% by default. The adjust method used is false discovery rate Benjamini-Hochberg, "BH" or "fdr".
+```{r}
+dt <- decideTests(efit, method = "separate",
+                    adjust.method = "BH", p.value = 0.05, lfc = 0)
+summary(dt)
+```
+Table of top genes from eBayes model fit
+
+```{r}
+tt <- topTable(efit, coef = 1, number = Inf, genelist = efit$genes,
+         adjust.method = "BH", p.value = 0.05, lfc=0,
+         sort.by = "B") # B-log-odds that the gene is differentially expressed
+dim(tt)
+head(tt, n=20)
+```
+
+Use the **treat** method to calculate p-values from a eBayes moderated t-statistics with a minimum logFC requirement. Instead of testing for genes that have true log-fold-changes different from zero, it tests whether the true log2-fold-change is greater than lfc in absolute value. When the number of DE genes is large, treat is often useful for giving preference to larger fold-changes and for prioritizing genes that are biologically important. treat is concerned with p-values rather than posterior odds.
+```{r}
+tfit <- treat(vfit, lfc=1)
+dt <- decideTests(tfit)
+summary(dt)
+```
+
+Table of top genes
+```{r}
+trt_vs_untrt <- topTreat(tfit, coef=1, n=Inf)
+head(trt_vs_untrt, n=30)
+```
+
+Mean-difference plot summarizing results for all genes and displaying logFCs from the linear model fit against the average log-CPM values with differentially expressed genes highlighted.
+```{r}
+plotMD(tfit, column=1, status=dt[,1], main=colnames(tfit)[1], 
+       xlim=c(-8,13))
+```
+Interactive mean-difference plot with Glimma glMDPlot
+
+```{r}
+glMDPlot(tfit, coef=1, status=dt, main=colnames(tfit)[1],
+         side.main="SYMBOL", counts=lcpm, groups=group, launch=FALSE)
+```
+
+The output HTML page includes summarized results (logFCs versus log-CPM values) in the left panel which is linked to individual log-CPM values per sample for a selected gene in the right panel. A table of results is also displayed below these figures, along with a search bar for looking up a particular gene based on the annotation information available (e.g. gene symbol identifier).
+
+[Link to interactive MD plot](./glimma-plots/MD-Plot.html) 
+
+Glimma is implemented in R and Javascript, with the R code generated the data which is converted into graphics the D3 Javascript library, with the Bootstrap library handling layouts and Datatables generating the interactive searchable tables.
+
+Heatmap of log-CPM values for to 10 genes differentially expressed in treated versus untreated ranked by adjusted p-value
+```{r, fig.height=8, fig.width=6}
+trt_vs_untrt.topgenes <- trt_vs_untrt$ENSEMBL[1:30]
+i <- which(v$genes$ENSEMBL %in% trt_vs_untrt.topgenes)
+mycol <- colorpanel(100,"blue","white","red")
+heatmap.2(lcpm[i,], scale="row",
+   labRow=v$genes$SYMBOL[i], labCol=group, 
+   col=mycol, trace="none", density.info="none", 
+   margin=c(8,6), dendrogram="column")
+```
+
+The results obtained from this analysis correlate well with findings from published literature [PMID: 24926665](https://pubmed.ncbi.nlm.nih.gov/24926665/). The top differentially expressed genes include DUSP1, PER1, CCDC69 and CRISPLD2 glucocorticoid-responsive genes with increased expression in dexamethasone treated cells.
+
+```{r}
+sessionInfo()
+```
+
