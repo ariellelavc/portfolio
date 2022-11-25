@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://corp.phase2e.com/eVault/EDXSchemas" xmlns:edx="http://corp.phase2e.com/eVault/EDXSchemas" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" elementFormDefault="qualified">
+	<import namespace="http://www.w3.org/2000/09/xmldsig#" schemaLocation="./xmldsig-core-schema.xsd"/>
+	<simpleType name="DirectiveType">
+		<restriction base="string">
+			<enumeration value="cancel"/>
+			<enumeration value="accept"/>
+			<enumeration value="reject"/>
+		</restriction>
+	</simpleType>
+	<element name="Payload" type="edx:PayloadType"/>
+	<complexType name="PayloadType">
+		<sequence>
+			<element name="Directive" type="edx:DirectiveType"/>
+			<element name="PayloadId" type="string"/>
+			<element ref="edx:Credentials"/>
+			<element ref="ds:Signature"/>
+		</sequence>
+	</complexType>
+	<element name="Credentials" type="edx:CredentialsType"/>
+	<complexType name="CredentialsType">
+		<sequence>
+			<element name="UserId" type="string"/>
+			<element name="UserPassword" type="string"/>
+		</sequence>
+	</complexType>
+</schema>
