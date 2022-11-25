@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://corp.phase2e.com/eVault/EDXSchemas" xmlns:edx="http://corp.phase2e.com/eVault/EDXSchemas" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" elementFormDefault="qualified">
+	<import namespace="http://www.w3.org/2000/09/xmldsig#" schemaLocation="./xmldsig-core-schema.xsd"/>
+	<element name="Payload" type="edx:PayloadType"/>
+	<simpleType name="VaultRecordIdType">
+		<restriction base="string">
+				<pattern value="\d{3}-\d{14}-\d{6}"/>      				
+    		</restriction>    		
+	</simpleType>
+	<simpleType name="SSType">
+		<restriction base="string">
+      				<maxLength value="255"/>
+    		</restriction>
+	</simpleType>
+	<complexType name="PayloadType">
+		<sequence>
+			<element ref="edx:Requests"/>
+			<element ref="edx:Credentials"/>
+			<element ref="ds:Signature"/>
+		</sequence>
+	</complexType>
+	<element name="Requests" type="edx:RequestsType"/>
+	<complexType name="RequestsType">
+		<sequence>
+			<element ref="edx:Request" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="Request" type="edx:RequestType"/>
+	<complexType name="RequestType">
+		<sequence>
+			<choice>
+				<element name="OwnerRecordId" type="edx:SSType"/>
+				<element name="VaultRecordId" type="edx:VaultRecordIdType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<element name="Credentials" type="edx:CredentialsType"/>
+	<complexType name="CredentialsType">
+		<sequence>
+			<element name="UserId" type="string"/>
+			<element name="UserPassword" type="string"/>
+		</sequence>
+	</complexType>
+</schema>

@@ -1,0 +1,6 @@
+name,smiles
+70033,Clc1c(C(F)(F)F)cc([N+](=O)[O-])c(Nc2ccc(NC(=O)C)cc2)c1
+70127,FC(F)(F)c1cc([N+](=O)[O-])c(NNC(=O)c2nccnc2)cc1
+70545,FC(F)(F)c1cc(C(=O)NNc2c(F)c(F)c(F)cc2)ccc1
+70546,FC(F)(F)c1c(NNC(=O)c2ccc(C(=O)N(C)C)cc2)cccc1
+70551,FC(F)(F)c1c(NNC(=O)c2ccc(C(F)(F)F)cc2)ccc(C#N)c1

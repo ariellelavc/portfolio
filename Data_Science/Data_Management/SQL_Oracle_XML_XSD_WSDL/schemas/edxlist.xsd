@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://corp.phase2e.com/eVault/EDXSchemas" xmlns:edx="http://corp.phase2e.com/eVault/EDXSchemas" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+	<element name="Payload" type="edx:PayloadType"/>
+	<complexType name="PayloadType">
+		<sequence>
+			<element ref="edx:Requests"/>
+		</sequence>
+	</complexType>
+	<element name="Requests" type="edx:RequestsType"/>
+	<complexType name="RequestsType">
+		<sequence>
+			<element ref="edx:Request" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="Request" type="edx:RequestType"/>
+	<complexType name="RequestType">
+		<sequence>
+			<element name="RecordExpression" type="string"/>
+			<element name="ContentExpression" type="string" minOccurs="0"/>
+		</sequence>
+	</complexType>
+</schema>
