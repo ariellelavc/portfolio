@@ -1,0 +1,14 @@
+#!/bin/csh
+#PBS -l nodes=3:ppn=8
+#PBS -l mem=44gb
+#PBS -l walltime=160:00:00
+#PBS -m bea
+
+set echo
+cd $PBS_O_WORKDIR
+module load mkl/11.1.073
+module load openmpi_intel64
+module unload intel-compilers/11.0.083
+module load intel-compilers/11.1.073
+
+mpirun --mca mpi_paffinity_alone 1 --mca btl self,openib -machinefile $PBS_NODEFILE -np 24 /RQusagers/carabetl/cp2k_trial/cp2k/cp2k/exe/Linux-x86-64-intel/cp2k.popt -i $PBS_JOBNAME.inp > $PBS_JOBNAME.out

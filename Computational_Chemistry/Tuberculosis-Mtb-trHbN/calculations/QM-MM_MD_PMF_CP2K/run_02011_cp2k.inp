@@ -1,0 +1,121 @@
+    &CELL
+      ABC       16.688 22.752 15.08
+      PERIODIC  NONE
+    &END CELL
+    &QM_KIND H
+      MM_INDEX 34602 34603 34606 34608 34611 34613 34615 34809 34810 34813
+      MM_INDEX 34815 34817 34819 34821 34997 34998 35000 35001 35005 35006
+      MM_INDEX 35329 35330 35332 35335 35338 36135 36137 36139 36141
+    &END QM_KIND
+    &QM_KIND Fe
+      MM_INDEX 36113
+    &END QM_KIND
+    &QM_KIND N
+      MM_INDEX 35004 35331 35336 36114 36115 36116 36117 36190
+    &END QM_KIND
+    &QM_KIND O
+      MM_INDEX 34610 35003 36142 36143 36191
+    &END QM_KIND
+    &QM_KIND C
+      MM_INDEX 34601 34604 34605 34607 34609 34612 34614 34808 34811 34812
+      MM_INDEX 34814 34816 34818 34820 34996 34999 35002 35328 35333 35334
+      MM_INDEX 35337 36118 36119 36120 36121 36122 36123 36124 36125 36126
+      MM_INDEX 36127 36128 36129 36130 36131 36132 36133 36134 36136 36138
+      MM_INDEX 36140
+    &END QM_KIND
+    &LINK
+      MM_INDEX           34599
+      QM_INDEX           34601
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           34806
+      QM_INDEX           34808
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           34994
+      QM_INDEX           34996
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           35326
+      QM_INDEX           35328
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36148
+      QM_INDEX           36119
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36144
+      QM_INDEX           36120
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36157
+      QM_INDEX           36123
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36161
+      QM_INDEX           36124
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36166
+      QM_INDEX           36127
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36170
+      QM_INDEX           36128
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36175
+      QM_INDEX           36131
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK
+    &LINK
+      MM_INDEX           36179
+      QM_INDEX           36132
+      LINK_TYPE          IMOMM
+      CORR_RADIUS        0.78
+      ALPHA_IMOMM        1.41
+      QMMM_SCALE_FACTOR  1.00
+    &END LINK

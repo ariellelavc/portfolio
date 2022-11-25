@@ -1,0 +1,244 @@
+@SET CURR_I  02
+@SET PREV_I  01
+
+@SET REPLICA  02011
+@SET SEED     1000
+
+&GLOBAL
+  PROGRAM_NAME                 CP2K
+  PROJECT_NAME                 trHbN_${REPLICA}_${CURR_I}
+  RUN_TYPE                     MD
+  SEED                         ${SEED}
+  PREFERRED_FFT_LIBRARY        FFTW
+  PRINT_LEVEL                  LOW
+  SAVE_MEM
+&END GLOBAL
+
+&EXT_RESTART
+  RESTART_FILE_NAME            trHbN_${REPLICA}_${PREV_I}-1.restart
+&END EXT_RESTART
+
+&FORCE_EVAL
+  METHOD QMMM
+  
+  &DFT
+    BASIS_SET_FILE_NAME        ./BASIS_MOLOPT
+    POTENTIAL_FILE_NAME        ./POTENTIAL
+    CHARGE                     1
+    MULTIPLICITY               2
+    UNRESTRICTED_KOHN_SHAM     F
+
+    WFN_RESTART_FILE_NAME      trHbN_${REPLICA}_${PREV_I}-RESTART.wfn
+
+    &SCF
+      SCF_GUESS                RESTART
+      EPS_SCF                  1.0E-6
+      MAX_SCF                  50
+      &OUTER_SCF
+	MAX_SCF                10
+      &END OUTER_SCF
+      &OT
+# My scheme
+        PRECONDITIONER         FULL_SINGLE_INVERSE
+        MINIMIZER              DIIS
+        N_DIIS                 7
+      &END OT
+      &PRINT
+	&RESTART
+	  &EACH
+	    MD                 20
+	  &END EACH
+	&END RESTART
+	&RESTART_HISTORY       OFF
+	&END RESTART_HISTORY
+      &END PRINT
+    &END SCF
+
+    &QS
+      METHOD                   GAPW
+# My scheme
+      EPS_DEFAULT              1.0E-12
+      EXTRAPOLATION            ASPC
+    &END QS
+    &MGRID
+      COMMENSURATE
+      CUTOFF                   300
+    &END MGRID
+    &POISSON
+      POISSON_SOLVER           MULTIPOLE
+      PERIODIC                 NONE
+      &MULTIPOLE
+         RCUT                  40
+      &END MULTIPOLE
+    &END POISSON
+    
+    &XC
+      &XC_FUNCTIONAL           BLYP
+      &END XC_FUNCTIONAL     
+      &XC_GRID
+  	XC_SMOOTH_RHO          NN10
+  	XC_DERIV               SPLINE2_SMOOTH
+      &END XC_GRID
+    &END XC
+    
+    &PRINT
+      &E_DENSITY_CUBE
+	&EACH
+	  MD                   20
+	&END EACH
+      &END E_DENSITY_CUBE
+    &END PRINT
+  &END DFT
+  
+  &MM
+    &FORCEFIELD
+      PARMTYPE                 CHM
+      PARM_FILE_NAME           ./par_all27_prot_na_heme.prm
+      &SPLINE
+  	RCUT_NB                12.0
+      &END SPLINE
+    &END FORCEFIELD
+    &POISSON
+      &EWALD
+        EWALD_TYPE             SPME
+        ALPHA                  0.35
+        GMAX                   80 80 80
+        O_SPLINE               6
+      &END EWALD
+    &END POISSON
+  &END MM
+
+  &QMMM
+    USE_GEEP_LIB               7
+    E_COUPL                    GAUSS
+    
+    @INCLUDE run_${REPLICA}_cp2k.inp
+    
+    @INCLUDE mm_kinds
+    
+    &WALLS
+      TYPE                     REFLECTIVE
+      WALL_SKIN                1.5 1.5 1.5
+    &END WALLS
+    
+    &PRINT
+      &PROGRAM_RUN_INFO        SILENT
+      &END PROGRAM_RUN_INFO
+      &PERIODIC_INFO           SILENT
+      &END PERIODIC_INFO
+      &QMMM_LINK_INFO          SILENT
+      &END QMMM_LINK_INFO
+    &END PRINT
+  &END QMMM
+
+  &SUBSYS
+    &CELL
+      ABC                      71.038 71.038 71.038
+      PERIODIC                 XYZ
+    &END CELL
+    &TOPOLOGY
+      CONNECTIVITY             UPSF
+      CONN_FILE_NAME           ./trHbN.xplor_psf
+      COORDINATE               PDB
+      COORD_FILE_NAME          ./run_${REPLICA}_cp2k.pdb
+      PARA_RES                 T
+    &END TOPOLOGY
+
+    ########################################  Basis sets and pseudopotentials
+    &KIND H
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q1
+      POTENTIAL GTH-BLYP-q1
+    &END KIND
+    &KIND C
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q4
+      POTENTIAL GTH-BLYP-q4
+    &END KIND
+    &KIND N
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q5
+      POTENTIAL GTH-BLYP-q5
+    &END KIND
+    &KIND O
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q6
+      POTENTIAL GTH-BLYP-q6
+    &END KIND
+    &KIND Fe
+      BASIS_SET DZVP-MOLOPT-SR-GTH-q16
+      POTENTIAL GTH-BLYP-q16
+    &END KIND
+    ########################################  Missing elements
+    &KIND NM
+      ELEMENT N
+    &END KIND
+    &KIND OM2
+      ELEMENT O
+    &END KIND
+    &COLVAR
+      &DISTANCE
+        ATOMS 36142 36143
+      &END
+    &END
+    &COLVAR
+      &DISTANCE
+        ATOMS 36142 36190
+      &END
+    &END
+  &END SUBSYS
+&END FORCE_EVAL
+
+&MOTION
+  &MD
+    ENSEMBLE                   LANGEVIN
+    STEPS                      2000
+    TIMESTEP                   0.50
+    TEMPERATURE                298.15
+    &LANGEVIN
+      GAMMA 0.004
+    &END
+    &PRINT
+      &ENERGY
+        &EACH
+          MD                   20
+        &END EACH
+      &END ENERGY
+    &END PRINT
+  &END MD
+  
+  &PRINT
+    &RESTART
+      &EACH                    
+        MD                     20
+      &END EACH
+    &END RESTART
+    &RESTART_HISTORY           OFF
+    &END RESTART_HISTORY
+
+    &TRAJECTORY                SILENT
+      FORMAT                   DCD
+      &EACH
+        MD                     20
+      &END EACH
+    &END TRAJECTORY
+    &VELOCITIES                OFF
+    &END VELOCITIES
+    &FORCES                    OFF
+    &END FORCES
+  &END PRINT
+
+  &CONSTRAINT
+    SHAKE_TOLERANCE            1.0E-9
+    &LAGRANGE_MULTIPLIERS ON
+      COMMON_ITERATION_LEVELS 3
+    &END LAGRANGE_MULTIPLIERS
+    &COLLECTIVE
+     COLVAR 1
+     INTERMOLECULAR T
+     TARGET [angstrom]  1.75
+    &END COLLECTIVE
+    &COLLECTIVE
+     COLVAR 2
+     INTERMOLECULAR T
+     TARGET [angstrom]  2.75
+    &END COLLECTIVE
+  &END CONSTRAINT
+&END MOTION
+
