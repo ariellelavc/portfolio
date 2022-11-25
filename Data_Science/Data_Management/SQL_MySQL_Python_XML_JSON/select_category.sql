@@ -1,1 +1,0 @@
-SELECT * FROM CLINICAL_TRIALS.category;
