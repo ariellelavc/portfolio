@@ -1,0 +1,110 @@
+---
+title: "sparklyr - R interface to Apache Spark"
+output: html_notebook
+author: LAC
+---
+
+## Install
+
+### Install sparklyr package
+
+```{r}
+install.packages("sparklyr")
+```
+
+### Install Spark locally
+
+Apache Spark is a multi-language engine for executing data engineering, data science, and machine learning on single-node machines or clusters.
+
+```{r}
+library(sparklyr)
+
+spark_install(version = "3.1.1")
+```
+
+```{r}
+spark_installed_versions()
+```
+### Connect to the single node local Spark cluster 
+
+`spark_connect()` returns a Spark Context which represents the connection to the Spark cluster used to execute Spark commands
+
+```{r}
+library(sparklyr)
+sc <- spark_connect(master="local")
+```
+
+## Using Spark
+
+```{r}
+library(dplyr)
+head(iris)
+```
+
+### Create a Spark DataFrame by copying iris dataset into Spark
+
+```{r}
+iris_sdf <- sdf_copy_to(sc=sc, x=iris, overwrite = T)
+```
+
+### Check data frames available in Spark
+
+```{r}
+src_tbls(sc)
+```
+
+```{r}
+iris_sdf %>% count
+```
+
+```{r}
+head(iris_sdf)
+```
+### Monitoring and analyzing execution of Spark commands through Spark's web interface
+
+```{r, warning=FALSE, message=FALSE}
+spark_web(sc)
+```
+
+### Fit a linear regression model to SparkDataFrame in Spark environment
+
+Within Spark system there are many statistical and machine learning algorithms developed to run parallel across many CPUs with data distributed across many memory units. Through `sparklyr` package, many Spark Machine Learning Library (MLlib) algorithms can be accessed in R. These include: linear regression, survival regression. generalized linear regression, naive-bayes, decision trees, random forests, gradient-boosted trees, multilayer perceptron, principal component analysis, k-means clustering, etc.
+
+```{r, warning=FALSE, message=FALSE}
+partitions <- iris_sdf %>%
+  sdf_random_split(training = 0.8, test = 0.2, seed = 2222)
+
+lm_model <- partitions$training %>%
+  ml_linear_regression(Sepal_Length ~ Sepal_Width + Petal_Length + Petal_Width)
+
+summary(lm_model)
+```
+
+```{r}
+lm_pred <- ml_predict(lm_model, partitions$test)
+head(lm_pred,6)
+```
+
+```{r}
+# calculate RMSE as performance metric for the regression model
+# the closer RMSE is to 0, the more accurate the model's predictive power
+ml_regression_evaluator(lm_pred, label_col = "Sepal_Length") 
+```
+
+### Fit a Multilayer Perceptron Classification model 
+
+Classification model based on the Artificial Neural Networks - Multilayer Perceptron. Each layer has sigmoid activation function, output layer has softmax.
+```{r}
+mlp_model <- partitions$training %>%
+  ml_multilayer_perceptron_classifier(Species ~ ., layers = c(4,3,3))
+
+mlp_pred <- ml_predict(mlp_model, partitions$test)
+
+head(mlp_pred,10)
+```
+
+```{r}
+# calculate F1-score as performance metric for the multiclass classification model
+# F1 ranges from 0 to 1. The closer to 1 (high F1 - high precision and recall), the better the model
+ml_multiclass_classification_evaluator(mlp_pred)
+```
