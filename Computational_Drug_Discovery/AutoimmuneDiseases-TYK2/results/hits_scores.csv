@@ -1,0 +1,16 @@
+Name,Smiles,CNNaffinity,CNNaffinity_variance,CNNscore,minimizedAffinity,Pharm. Score,rmsd
+BMS-986165,O(c3c(Nc2c(nnc(NC(=O)C1CC1)c2)C(=O)NC)cccc3c4nn(cn4)C)C,7.85,0.26,1.00,-10.33,,
+ZINC72454514,o1c(nnc1)c5ccc(c4c2c([nH]cc2)nc(NCc3ccncc3)c4)cc5,7.38,0.19,0.99,-10.15,86.01,0.98
+ZINC72168947,n1(ncc4c1ccc(c3c2c([nH]cc2)nc(NCCN(C)C)c3)c4)C,7.07,0.15,0.99,-9.75,86.6,0.84
+ZINC72143513,[nH]2c1nc(NCCN(C)C)cc(c1cc2)c4cc3c(cnc(N)c3)cc4,7.16,0.12,0.99,-10.56,76.65,0.70
+ZINC20939758,O=C(c3cc2n1c(nnc1C)c(nc2cc3)NCC4N(CCC4)CC)c5ccccc5,7.57,0.06,0.98,-9.55,67.66,0.96
+ZINC23432014,Fc1c(c(F)ccc1)CNc4n2ncnc2nc(c3ccc(OC)cc3)c4,7.35,0.08,0.98,-9.34,65.42,0.89
+ZINC32540567,O=C(N(C)C)c3ccc(c1nc(nc(n1)N)Nc2ccc(cc2)C)cc3,7.11,0.03,0.97,-9.34,46.58,1.08
+ZINC01084111,S=C(Nc2nc(c1c(O)cccc1)cc(n2)c3ccc(OC)cc3)N,7.09,0.08,0.97,-9.59,45.81,1.00
+ZINC02638281,Clc1ccc(cc1)C(=O)c3sc2n(c(=O)[nH]c(=O)c2c3N)c4ccc(cc4)C(=O)C,7.29,0.10,0.96,-9.52,76.25,0.96
+ZINC13131776,O(c1ccc(cc1)C4n2nc(nc2NC(c3cc(OC)ccc3)C4)N)CC,7.01,0.03,0.96,-9.02,56.4,0.94
+ZINC06901595,O=C(c3cc2n1c(nnc1)c(nc2cc3)NC4CCCC4)c5ccccc5,7.12,0.09,0.93,-9.39,55.76,1.09
+ZINC13131298,Clc1c(ccc(Cl)c1)C4Nc2n(nc(n2)N)C(c3cc(OC)c(OC)cc3)C4,7.25,0.09,0.92,-9.07,36.13,0.94
+ZINC02472304,O(c1ccc(cc1)C4n2nc(nc2NC(c3cc(OC)ccc3)C4)N)Cc5ccccc5,7.36,0.05,0.91,-9.50,45.86,0.94
+ZINC02472318,O(c1ccc(cc1)C4n2nc(nc2NC(c3ccc(OC)cc3)C4)N)Cc5ccccc5,7.14,0.07,0.89,-9.39,56.98,0.94
+ZINC02472295,Fc1ccc(cc1)C5Nc2n(nc(n2)N)C(c4ccc(OCc3ccccc3)cc4)C5,7.07,0.09,0.88,-9.66,56.98,0.94
