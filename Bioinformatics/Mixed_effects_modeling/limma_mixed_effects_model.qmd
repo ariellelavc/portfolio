@@ -1,0 +1,108 @@
+---
+title: "Gene Expression Mixed Effects Modeling with limma"
+format: html
+editor: visual
+---
+
+## Load libraries
+
+```{r}
+library(readxl)
+library(tidyr)
+library(limma)
+```
+
+## Load Data
+
+*Toy study of treatment effects with gene expression measurements taken from patients at multiple time points. Three patients were administered treatment D1, and another three were administered treatment D2. Gene expression measurements were taken for the patients at two timepoints, T1 (baseline) and T2.*
+
+```{r}
+dat <- readxl::read_excel('./data/expression.xlsx')
+dat
+```
+
+## Mixed Effects Modeling with limma
+
+*What is the difference between timepoint T2 and T1 in treatment D1? What is the difference between timepoint T2 and T1 in treatment D2? What is the overall difference between treatment D1 and D2?*
+
+*Considering that specific differences between patients are not of direct interest, relative to differences in treatments, and at different time points within treatment, patient ids can be included as random effects in a mixed effects model. Individual patient effects should still be accounted for when calculating the relative difference between T1 and T2 timepoints.*
+
+Create design matrix such that `treatment` and `timepoint` are fitted as fixed effects in the model, and incorporate patient `ids` as a random effect.
+
+Merge `treatment` and `timepoint` factors into a single `group` factor.
+
+```{r}
+dat <- dat %>% 
+  unite("group", treatment:timepoint, sep="_", remove=FALSE)
+dat
+```
+
+### Create design matrix
+
+```{r}
+design <- model.matrix(~0+group, data=dat)
+design
+```
+
+### Approximation of mixed effects in limma
+
+Estimate the mean correlation of gene expression between repeated patient measurements using the `duplicateCorrelation` function in **limma**
+
+```{r}
+corr <-  duplicateCorrelation(object=dat$expression, 
+                              design=design, 
+                              block=dat$id)
+corr$consensus.correlation 
+```
+
+The correlation between measurements taken from the same patient is estimated as -0.03, which is a very small correlation value that could be removed from the model as its contribution to the overall model fit would be minor. Range of correlation estimates {'very small':\<0.01, 'high':0.7-0.9}
+
+### Linear Modeling 
+
+Using **limma**'s linear modeling `lmFit` function, fit the random effects into the linear model by setting the *correlation* argument to the estimated mean gene expression correlation between paired samples.
+
+```{r}
+fit <-  lmFit(object=dat$expression, 
+              design=design, 
+              block=dat$id, 
+              correlation = corr$consensus.correlation)
+fit$coefficients
+```
+
+The mixed effects model estimates the mean gene expression of patient receiving treatment D1 at timepoint T1 to be 1.03, treatment D1 at timepoint T2 to be 2.12, treatment D2 at timepoint T1 to be 3, and treatment D2 at timepoint T2 to be 4.9.
+
+### Create contrasts matrix
+
+Create contrasts matrix using `makeContrasts` function to obtain estimates for the comparisons of interest
+
+-    *difference between timepoint T2 and T1 in treatment D1*
+
+-    *difference between timepoint T2 and T1 in treatment D2*
+
+-    *overall difference between treatment D1 and D2*
+
+```{r}
+contrasts <- makeContrasts(
+  D1_T2vsT1 = groupD1_T2 - groupD1_T1,
+  D2_T2vsT1 = groupD2_T2 - groupD2_T1,
+  D1vsD2 = (groupD1_T2 - groupD1_T1) - (groupD2_T2 - groupD2_T1),
+  levels = colnames(design))
+contrasts
+```
+
+### Fitting multiple contrasts
+
+Incorporate the contrast matrix into the **limma** pipeline using the `contrasts.fit` function
+
+```{r}
+fit <- contrasts.fit(fit, contrasts)
+fit$coefficients
+```
+
+-    *gene expression difference between timepoint T2 and T1 for treatment D1 \>= 1.09*
+
+-    *gene expression difference between timepoint T2 and T1 for treatment D2 \>= 1.9*
+
+-    *overall gene expression difference between treatment D1 and D2 = -0.82*
+
+Greater gene expression changes under D2 and at T2.

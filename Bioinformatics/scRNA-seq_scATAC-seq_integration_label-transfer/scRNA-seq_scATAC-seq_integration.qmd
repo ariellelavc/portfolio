@@ -1,0 +1,244 @@
+---
+title: "Integrative analysis between scRNA-seq and scATAC-seq multiome datasets"
+output:
+  html_document:
+    theme: united
+    df_print: kable
+---
+
+## Multiome Data
+
+Publicly available \~12,000 human PBMC 'multiome' dataset from 10x Genomics: scRNA-seq and scATAC-seq profiles simultaneously collected in the same cells - ground truth to assess accuracy of integration. [Integrate the scRNA-seq and scATAC-seq data](https://www.cell.com/cell/fulltext/S0092-8674(19)30559-8) - here, as if it originates from two different experiments.
+
+```{r installdata}
+library(SeuratData)
+
+# install the dataset 
+InstallData('pbmcMultiome')
+```
+
+### Load Libraries
+
+```{r loadpkgs}
+library(Seurat) # QC, analysis, ad exploration of scRNA-seq data
+library(Signac) # Analysis of single-cell chromatin datasets, including scATAC-seq, and multimodal datasets
+library(EnsDb.Hsapiens.v86)
+library(ggplot2)
+library(cowplot)
+```
+
+### Load Individual Data Modalities
+
+```{r loaddata}
+# load scRNA-seq data
+pbmc.rna <- LoadData("pbmcMultiome", "pbmc.rna")
+pbmc.rna[["RNA"]] <- as(pbmc.rna[["RNA"]], Class = "Assay5")
+
+# load scATAC-seq data
+pbmc.atac <- LoadData("pbmcMultiome", "pbmc.atac")
+```
+
+### QC
+
+```{r qc}
+pbmc.rna <- subset(pbmc.rna, seurat_annotations != "filtered")
+pbmc.atac <- subset(pbmc.atac, seurat_annotations != "filtered")
+```
+
+```{r}
+pbmc.rna
+```
+
+```{r}
+pbmc.atac 
+```
+
+### Individual Modality Analysis
+
+```{r rna-analysis}
+pbmc.rna <- NormalizeData(pbmc.rna)
+pbmc.rna <- FindVariableFeatures(pbmc.rna)
+pbmc.rna <- ScaleData(pbmc.rna)
+pbmc.rna <- RunPCA(pbmc.rna)
+pbmc.rna <- RunUMAP(pbmc.rna, dims = 1:30)
+```
+
+```{r atac-analysis}
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
+seqlevelsStyle(annotations) <- "UCSC"
+genome(annotations) <- "hg38"
+Annotation(pbmc.atac) <- annotations
+
+pbmc.atac <- RunTFIDF(pbmc.atac)
+pbmc.atac <- FindTopFeatures(pbmc.atac, min.cutoff = 'q0')
+pbmc.atac <- RunSVD(pbmc.atac)
+pbmc.atac <- RunUMAP(pbmc.atac, reduction = 'lsi', dims = 2:30, 
+                     reduction.name = "umap.atac", reduction.key = "atacUMAP_")
+```
+
+plot the results from both modalities. Cells have been previously annotated based on transcriptomic state. We will predict annotations for the scATAC-seq cells.
+
+```{r viz1}
+p1 <- DimPlot(pbmc.rna, group.by = 'seurat_annotations', label = TRUE) + 
+  NoLegend() + ggtitle("RNA")
+p2 <- DimPlot(pbmc.atac, group.by = 'orig.ident', label = FALSE) + 
+  NoLegend() + ggtitle("ATAC")
+p1 + p2
+```
+
+```{r save.img, include = TRUE}
+plot <- (p1 + p2) &
+  xlab("UMAP 1") & ylab("UMAP 2") & 
+  theme(axis.title = element_text(size = 18))
+ggsave(filename = "./output/images/rnaseq_atacseq_integration.jpg", 
+       height = 7, width = 12, plot = plot, quality = 50)
+```
+
+## Integrative analysis between scRNA-seq and scATAC-seq datasets
+
+Integrative analysis between scRNA-seq and scATAC-seq datasets focuses primarily on label transfer across data modalities. Optionally, it includes co-embedding of scRNA-seq and scATAC-seq datasets and visualization of co-embedded single cells on the same plot.
+
+### Identify anchors between scRNA-seq and scATAC-seq datasets
+
+To identify 'anchors' between scRNA-seq and scATAC-seq experiments, we first generate a rough estimate of the transcriptional activity of each gene by quantifying ATAC-seq counts in the 2 kb-upstream region and gene body, using the `GeneActivity()` function in the Signac package. The ensuing gene activity scores from the scATAC-seq data are then used as input for canonical correlation analysis, along with the gene expression quantifications from scRNA-seq. This quantification is performed for all genes identified as being highly variable from the scRNA-seq dataset.
+
+```{r gene.activity}
+# quantify gene activity
+gene.activities <- GeneActivity(pbmc.atac, features = VariableFeatures(pbmc.rna))
+
+# add gene activities as a new assay
+pbmc.atac[["ACTIVITY"]] <- CreateAssayObject(counts = gene.activities)
+
+# normalize gene activities
+DefaultAssay(pbmc.atac) <- "ACTIVITY"
+pbmc.atac <- NormalizeData(pbmc.atac)
+pbmc.atac <- ScaleData(pbmc.atac, features = rownames(pbmc.atac))
+```
+
+```{r}
+pbmc.rna
+```
+
+```{r}
+pbmc.atac
+```
+
+```{r label.xfer}
+# Identify anchors 
+transfer.anchors <- FindTransferAnchors(
+  reference = pbmc.rna,
+  query = pbmc.atac,
+  features = VariableFeatures(object = pbmc.rna),
+  reference.assay = 'RNA',
+  query.assay = 'ACTIVITY',
+  reduction = 'cca'
+)
+```
+
+### Annotate scATAC-seq cells via label transfer
+
+After identifying anchors, annotations are transferred from the scRNA-seq dataset onto the scATAC-seq cells. The annotations are stored in the `seurat_annotations` field, and are provided as input to the `refdata` parameter. The output will contain a matrix with predictions and confidence scores for each ATAC-seq cell.
+
+```{r transfer.data}
+celltype.predictions <- TransferData(
+  anchorset = transfer.anchors,
+  refdata = pbmc.rna$seurat_annotations,
+  weight.reduction = pbmc.atac[['lsi']],
+  dims = 2:30
+)
+
+pbmc.atac <- AddMetaData(pbmc.atac, metadata = celltype.predictions)
+```
+
+After performing transfer, the ATAC-seq cells have predicted annotations (transferred from the scRNA-seq dataset) stored in the `predicted.id` field. Since these cells were measured with a multiome kit, a ground-truth annotation is available to be used for evaluation. The plots below show that the predicted and actual annotations are extremely similar.
+
+```{r viz.label.accuracy}
+pbmc.atac$annotation_correct <- pbmc.atac$predicted.id ==
+  pbmc.atac$seurat_annotations
+p1 <- DimPlot(pbmc.atac, group.by = 'predicted.id', label = TRUE) +
+  NoLegend() + ggtitle("Predicted annotation")
+p2 <- DimPlot(pbmc.atac, group.by = 'seurat_annotations', label = TRUE) +
+  NoLegend() + ggtitle("Ground-truth annotation")
+p1 | p2
+```
+
+The annotation for an scATAC-seq profile is correctly predicted via scRNA-seq integration \~90% of the time.
+
+```{r}
+table(pbmc.atac$annotation_correct)
+```
+
+In addition, the \`prediction.score.max\` field quantifies the uncertainty associated with the predicted annotations. Cells that are correctly annotated are typically associated with high prediction scores (\>90%), while cells that are incorrectly annotated are associated with sharply lower prediction scores (\<50%). Incorrect assignments also tend to reflect closely related cell types (i.e. Intermediate vs. Naive B cells).
+
+```{r}
+predictions <- table(pbmc.atac$seurat_annotations, pbmc.atac$predicted.id)
+predictions <- predictions / rowSums(predictions) # normalize for number of cells in each cell type
+predictions <- as.data.frame(predictions)
+head(predictions)
+```
+
+```{r score.viz, fig.height = 6, fig.width = 12}
+p1 <- ggplot(predictions, aes(Var1, Var2, fill = Freq)) +
+  geom_tile() +
+  scale_fill_gradient(name = "Fraction of cells", low = "#ffffc8", high = "#7d0025") +
+  xlab("Cell type annotation (RNA)") +
+  ylab("Predicted cell type label (ATAC)") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+
+correct <- length(which(pbmc.atac$seurat_annotations == pbmc.atac$predicted.id))
+incorrect <- length(which(pbmc.atac$seurat_annotations != pbmc.atac$predicted.id))
+data <- FetchData(pbmc.atac, vars = c("prediction.score.max", "annotation_correct")) 
+p2 <- ggplot(data, aes(prediction.score.max, fill = annotation_correct, colour = annotation_correct)) + 
+  geom_density(alpha = 0.5) + theme_cowplot() + 
+  scale_fill_discrete(name = "Annotation Correct", labels = c(paste0("FALSE (n = ", incorrect, ")"), paste0("TRUE (n = ", correct, ")"))) + 
+  scale_color_discrete(name = "Annotation Correct", labels = c(paste0("FALSE (n = ", incorrect, ")"), paste0("TRUE (n = ", correct, ")"))) +
+  xlab("Prediction Score")
+p1 + p2
+```
+
+### Co-embed scRNA-seq and scATAC-seq datasets
+
+To perform co-embedding, RNA expression is first `imputed` into the scATAC-seq cells based on the previously computed anchors, and then the datasets are merged.
+
+```{r coembed}
+# restrict the imputation to variable genes from scRNA-seq, but could impute the
+# full transcriptome if wanted
+genes.use <- VariableFeatures(pbmc.rna)
+refdata <- GetAssayData(pbmc.rna, assay = "RNA", slot = "data")[genes.use, ]
+
+# refdata (input) contains a scRNA-seq expression matrix for the scRNA-seq cells  
+# imputation (output) contains an imputed scRNA-seq matrix for each of the ATAC cells
+imputation <- TransferData(anchorset = transfer.anchors, 
+                           refdata = refdata, 
+                           weight.reduction = pbmc.atac[["lsi"]], 
+                           dims = 2:30)
+pbmc.atac[["RNA"]] <- imputation
+
+coembed <- merge(x = pbmc.rna, y = pbmc.atac)
+
+# run PCA and UMAP on the combined object 
+
+coembed <- ScaleData(coembed, features = genes.use, do.scale = FALSE)
+coembed <- RunPCA(coembed, features = genes.use, verbose = FALSE)
+coembed <- RunUMAP(coembed, dims = 1:30)
+
+# visualize the co-embedding of both datasets
+DimPlot(coembed, group.by = c("orig.ident","seurat_annotations"))
+```
+
+```{r}
+str(refdata)
+```
+
+```{r}
+str(imputation)
+```
+
+```{r}
+str(coembed)
+```
+
+```{r}
+sessionInfo()
+```

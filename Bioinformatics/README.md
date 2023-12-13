@@ -8,8 +8,12 @@ Bioinformatics Analyses that include:
 
 * Whole Genome Sequencing (WGS) Quality Control (QC) Summary Statistics
 
-* Cancer Genomics Analyses
+* Cancer Genomics WGS SNV, CNA Genotyping Analyses
 
 * RNA-seq Analysis
 
 * scRNA-seq Analysis
+
+* scRNA-seq + scATAC-seq Integrative Multimodal Analyses
+
+* stRNA-seq Analysis

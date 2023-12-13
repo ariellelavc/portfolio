@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.433">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Integrated Weighted Nearest Neighbor Analysis of 10x Multiome Paired scRNA-seq and scATAC-seq profiles</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/clipboard/clipboard.min.js"></script>
+<script src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/quarto-html/quarto.js"></script>
+<script src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/quarto-html/popper.min.js"></script>
+<script src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/quarto-html/anchor.min.js"></script>
+<link href="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Integrated Weighted Nearest Neighbor Analysis of 10x Multiome Paired scRNA-seq and scATAC-seq profiles</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<p>Multimodal single-cell technologies, which simultaneously profile multiple data types in the same cell, represent an important advancement in the discovery and characterization of cell states. Transcriptomic and epigenetic cellular states are key determinants of cellular identity in tissues. scRNA_seq technologies are capable of discovering new cell types and states in heterogeneous tissues, however transcriptomics alone is often incapable of separating molecularly similar, but functionaly distinct categories of immune cells (e.g.&nbsp;distinct populations of T cells including effector, regulatory). Defining cell states based on transcriptome alone is insuficient as important sources of cellular heterogeneity may not correlate strongly with transcriptomic features despite being identifiable in other modalities. Mapping of accessible chromatin in single cells is a powerful approach for dissecting tissue heterogeneity and delineating candidate regulatory genomic sequences in each constituent cell type.</p>
+<p>Multimodal analysis - simultaneous profiling of transcriptome alongside chromatin accessibility - can overcome the limitations of scRNA-seq and allows exploration of how multiple cellular modalities affect cellular state and function.</p>
+<p><a href="https://pubmed.ncbi.nlm.nih.gov/34062119/">Weighted nearest neighbor (WNN) analysis</a> is an unsupervised framework that enables integrative analysis of multiple modalities by learning the relative utility if each data type, here RNA and ATAC (assay for transposase-accessible chromatin), in each cell.</p>
+<section id="workflow" class="level2">
+<h2 class="anchored" data-anchor-id="workflow">Workflow</h2>
+<ul>
+<li><p>Create a multimodal Seurat object with paired transcriptome and ATAC-seq profiles</p></li>
+<li><p>Perform multimodal WNN analyis by computing a WNN graph which represents a weighted combination of RNA and ATAC-seq modalities. Use the WNN graph for weighted neighbor clustering and visualization of RNA + ATAC data in single cells</p></li>
+<li><p>Leverage both modalities to identify putative regulators of different cell types and states</p></li>
+</ul>
+</section>
+<section id="download-single-cell-multiome-atac-gene-expression-dataset" class="level2">
+<h2 class="anchored" data-anchor-id="download-single-cell-multiome-atac-gene-expression-dataset">Download Single Cell Multiome ATAC + Gene Expression Dataset</h2>
+<p>Paired scRNA-seq and scATAC-seq profiles from <a href="https://support.10xgenomics.com/single-cell-multiome-atac-gex/datasets/1.0.0/pbmc_granulocyte_sorted_10k">10X Genomics</a> - PBMC from a healthy donor, granulocytes removed through cell sorting (10k)</p>
+<p>Single Cell Multiome ATAC + Gene Exp. Dataset by Cell Ranger ARC 1.0.0</p>
+<p>For a summary of the dataset click <a href="https://cf.10xgenomics.com/samples/cell-arc/1.0.0/pbmc_granulocyte_sorted_10k/pbmc_granulocyte_sorted_10k_web_summary.html">here</a>.</p>
+<p>Files:</p>
+<ul>
+<li><p>Filtered feature barcode matrix (HDF5) that contains both data GE and ATAC types - 154.76 MB</p></li>
+<li><p>ATAC Per fragment information file (TSV.GZ) that contains a full list of all unique fragments across all single cells (and not only fragments that map to peaks - 1.91 GB</p></li>
+<li><p>ATAC Per fragment information index (TSV.GZ index) - 1003 KB</p></li>
+</ul>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># download.file("https://cf.10xgenomics.com/samples/cell-arc/1.0.0/pbmc_granulocyte_sorted_10k/pbmc_granulocyte_sorted_10k_filtered_feature_bc_matrix.h5", "./data/pbmc_granulocyte_sorted_10k_filtered_feature_bc_matrix.h5", method = "wget", quiet=TRUE)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># download.file("https://cf.10xgenomics.com/samples/cell-arc/1.0.0/pbmc_granulocyte_sorted_10k/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz", "./data/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz", method = "wget", quiet=TRUE)</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># download.file("https://cf.10xgenomics.com/samples/cell-arc/1.0.0/pbmc_granulocyte_sorted_10k/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz.tbi", "./data/https://cf.10xgenomics.com/samples/cell-arc/1.0.0/pbmc_granulocyte_sorted_10k/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz.tbi", method = "wget", quiet=TRUE)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="load-libraries" class="level2">
+<h2 class="anchored" data-anchor-id="load-libraries">Load Libraries</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(Seurat) <span class="co"># QC, analysis, and exploration of scRNA-seq data</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: SeuratObject</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: sp</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'SeuratObject'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:base':
+
+    intersect</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(Signac) <span class="co"># analysis of single-cell chromatin datasets, including scATAC-seq, and multimodal datasets</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(EnsDb.Hsapiens.v86)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: ensembldb</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: BiocGenerics</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'BiocGenerics'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:SeuratObject':
+
+    intersect</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:stats':
+
+    IQR, mad, sd, var, xtabs</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:base':
+
+    anyDuplicated, aperm, append, as.data.frame, basename, cbind,
+    colnames, dirname, do.call, duplicated, eval, evalq, Filter, Find,
+    get, grep, grepl, intersect, is.unsorted, lapply, Map, mapply,
+    match, mget, order, paste, pmax, pmax.int, pmin, pmin.int,
+    Position, rank, rbind, Reduce, rownames, sapply, setdiff, sort,
+    table, tapply, union, unique, unsplit, which.max, which.min</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: GenomicRanges</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: stats4</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: S4Vectors</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'S4Vectors'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:utils':
+
+    findMatches</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:base':
+
+    expand.grid, I, unname</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: IRanges</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'IRanges'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:sp':
+
+    %over%</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: GenomeInfoDb</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: GenomicFeatures</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: AnnotationDbi</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: Biobase</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: AnnotationFilter</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'ensembldb'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:stats':
+
+    filter</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'dplyr'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:ensembldb':
+
+    filter, select</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:AnnotationDbi':
+
+    select</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:Biobase':
+
+    combine</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:GenomicRanges':
+
+    intersect, setdiff, union</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:GenomeInfoDb':
+
+    intersect</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:IRanges':
+
+    collapse, desc, intersect, setdiff, slice, union</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:S4Vectors':
+
+    first, intersect, rename, setdiff, setequal, union</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:BiocGenerics':
+
+    combine, intersect, setdiff, union</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:stats':
+
+    filter, lag</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="load-data" class="level2">
+<h2 class="anchored" data-anchor-id="load-data">Load Data</h2>
+<p>Create a Seurat object based on the gene expression data, and then add in the ATAC-seq data as a a second assay.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read count matrix from 10x CellRanger hdf5 file that contains both SCRNA-seq and scATAC-seq matrices.</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>inputdata<span class="fl">.10</span>x <span class="ot">&lt;-</span> <span class="fu">Read10X_h5</span>(<span class="st">"./data/pbmc_granulocyte_sorted_10k_filtered_feature_bc_matrix.h5"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Genome matrix has multiple modalities, returning a list of matrices for this genome</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># extract RNA and ATAC matrices</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>rna_counts <span class="ot">&lt;-</span> inputdata<span class="fl">.10</span>x<span class="sc">$</span><span class="st">`</span><span class="at">Gene Expression</span><span class="st">`</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>atac_counts <span class="ot">&lt;-</span> inputdata<span class="fl">.10</span>x<span class="sc">$</span>Peaks</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a><span class="co"># create Seurat object</span></span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">CreateSeuratObject</span>(<span class="at">counts =</span> rna_counts, <span class="at">assay =</span> <span class="st">"RNA"</span>)</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>pbmc[[<span class="st">"percent.mt"</span>]] <span class="ot">&lt;-</span> <span class="fu">PercentageFeatureSet</span>(pbmc, <span class="at">pattern =</span> <span class="st">"^MT-"</span>) <span class="co"># mitochondrial genes percent counts</span></span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a><span class="co"># add in ATAC-seq data  </span></span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a><span class="co"># only peaks in standard choromosomes are used</span></span>
+<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a>grange.counts <span class="ot">&lt;-</span> Signac<span class="sc">::</span><span class="fu">StringToGRanges</span>(<span class="fu">rownames</span>(atac_counts), <span class="at">sep =</span> <span class="fu">c</span>(<span class="st">":"</span>, <span class="st">"-"</span>))</span>
+<span id="cb46-12"><a href="#cb46-12" aria-hidden="true" tabindex="-1"></a>grange.used <span class="ot">&lt;-</span> GenomeInfoDb<span class="sc">::</span><span class="fu">seqnames</span>(grange.counts) <span class="sc">%in%</span> GenomeInfoDb<span class="sc">::</span><span class="fu">standardChromosomes</span>(grange.counts)</span>
+<span id="cb46-13"><a href="#cb46-13" aria-hidden="true" tabindex="-1"></a>atac_counts <span class="ot">&lt;-</span> atac_counts[<span class="fu">as.vector</span>(grange.used),]</span>
+<span id="cb46-14"><a href="#cb46-14" aria-hidden="true" tabindex="-1"></a>annotations <span class="ot">&lt;-</span> <span class="fu">suppressWarnings</span>(Signac<span class="sc">::</span><span class="fu">GetGRangesFromEnsDb</span>(<span class="at">ensdb =</span> EnsDb.Hsapiens.v86)) <span class="co"># pulls transcript information for all chromosomes from an ENSDb object</span></span>
+<span id="cb46-15"><a href="#cb46-15" aria-hidden="true" tabindex="-1"></a>GenomeInfoDb<span class="sc">::</span><span class="fu">seqlevelsStyle</span>(annotations) <span class="ot">&lt;-</span> <span class="st">"UCSC"</span></span>
+<span id="cb46-16"><a href="#cb46-16" aria-hidden="true" tabindex="-1"></a>GenomeInfoDb<span class="sc">::</span><span class="fu">genome</span>(annotations) <span class="ot">&lt;-</span> <span class="st">"hg38"</span></span>
+<span id="cb46-17"><a href="#cb46-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-18"><a href="#cb46-18" aria-hidden="true" tabindex="-1"></a>frag.file <span class="ot">&lt;-</span> <span class="st">"./data/pbmc_granulocyte_sorted_10k_atac_fragments.tsv.gz"</span></span>
+<span id="cb46-19"><a href="#cb46-19" aria-hidden="true" tabindex="-1"></a><span class="co"># create a Signac ChromatinAssay object</span></span>
+<span id="cb46-20"><a href="#cb46-20" aria-hidden="true" tabindex="-1"></a>chrom_assay <span class="ot">&lt;-</span> Signac<span class="sc">::</span><span class="fu">CreateChromatinAssay</span>(</span>
+<span id="cb46-21"><a href="#cb46-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">counts =</span> atac_counts,</span>
+<span id="cb46-22"><a href="#cb46-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">sep =</span> <span class="fu">c</span>(<span class="st">":"</span>, <span class="st">"-"</span>),</span>
+<span id="cb46-23"><a href="#cb46-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">genome =</span> <span class="st">"hg38"</span>,</span>
+<span id="cb46-24"><a href="#cb46-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">fragments =</span> frag.file,</span>
+<span id="cb46-25"><a href="#cb46-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.cells =</span> <span class="dv">10</span>,</span>
+<span id="cb46-26"><a href="#cb46-26" aria-hidden="true" tabindex="-1"></a>  <span class="at">annotation =</span> annotations</span>
+<span id="cb46-27"><a href="#cb46-27" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Computing hash</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>pbmc[[<span class="st">"ATAC"</span>]] <span class="ot">&lt;-</span> chrom_assay</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="qc-filtering" class="level2">
+<h2 class="anchored" data-anchor-id="qc-filtering">QC &amp; Filtering</h2>
+<p>based on the number of detected molecules for each modality as well as mitochondrial percentage</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="fu">VlnPlot</span>(pbmc, <span class="at">features =</span> <span class="fu">c</span>(<span class="st">"nCount_ATAC"</span>, <span class="st">"nCount_RNA"</span>, <span class="st">"percent.mt"</span>), <span class="at">ncol =</span> <span class="dv">3</span>,</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">log =</span> <span class="cn">TRUE</span>, <span class="at">pt.size =</span> <span class="dv">0</span>) <span class="sc">+</span> <span class="fu">NoLegend</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Default search for "data" layer in "RNA" assay yielded no results;
+utilizing "counts" layer instead.</code></pre>
+</div>
+<div class="cell-output-display">
+<p><img src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/figure-html/QC-1.png" class="img-fluid" width="960"></p>
+</div>
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">subset</span>(</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">x =</span> pbmc,</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">subset =</span> nCount_ATAC <span class="sc">&lt;</span> <span class="fl">7e4</span> <span class="sc">&amp;</span></span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a>    nCount_ATAC <span class="sc">&gt;</span> <span class="fl">5e3</span> <span class="sc">&amp;</span></span>
+<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a>    nCount_RNA <span class="sc">&lt;</span> <span class="dv">25000</span> <span class="sc">&amp;</span></span>
+<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a>    nCount_RNA <span class="sc">&gt;</span> <span class="dv">1000</span> <span class="sc">&amp;</span></span>
+<span id="cb51-7"><a href="#cb51-7" aria-hidden="true" tabindex="-1"></a>    percent.mt <span class="sc">&lt;</span> <span class="dv">20</span></span>
+<span id="cb51-8"><a href="#cb51-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="individual-analysis---pre-processing-dimensionality-reduction" class="level2">
+<h2 class="anchored" data-anchor-id="individual-analysis---pre-processing-dimensionality-reduction">Individual Analysis - Pre-processing &amp; dimensionality reduction</h2>
+<p>on both assays independently</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="co"># RNA analysis</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="fu">DefaultAssay</span>(pbmc) <span class="ot">&lt;-</span> <span class="st">"RNA"</span></span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">SCTransform</span>(pbmc, <span class="at">verbose =</span> <span class="cn">FALSE</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">RunPCA</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">RunUMAP</span>(<span class="at">dims =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">50</span>, <span class="at">reduction.name =</span> <span class="st">'umap.rna'</span>, <span class="at">reduction.key =</span> <span class="st">'rnaUMAP_'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>PC_ 1 
+Positive:  EEF1A1, RPL13, RPS27, RPL13A, GNLY, RPL41, RPS27A, RPS2, RPL3, RPS12 
+       BCL2, RPS18, RPL11, LEF1, BCL11B, BACH2, RPL23A, RPL10, INPP4B, IL32 
+       RPL34, CAMK4, IL7R, RPS3, RPS26, RPS14, RPL30, RPL19, LTB, SKAP1 
+Negative:  VCAN, SAT1, PLXDC2, SLC8A1, NEAT1, DPYD, NAMPT, ZEB2, LRMDA, LYZ 
+       FCN1, LYN, AOAH, ANXA1, JAK2, CD36, ARHGAP26, TYMP, RBM47, PID1 
+       PLCB1, LRRK2, ACSL1, LYST, IRAK3, DMXL2, MCTP1, GAB2, AC020916.1, TCF7L2 
+PC_ 2 
+Positive:  IGHM, IGKC, BANK1, AFF3, RALGPS2, MS4A1, CD74, PAX5, EBF1, FCRL1 
+       OSBPL10, CD79A, LINC00926, TCF4, COL19A1, IGHD, BLK, NIBAN3, CD22, IGLC2 
+       SOX5, LIX1-AS1, CD79B, HLA-DRA, PLEKHG1, GPM6A, ADAM28, COBLL1, STEAP1B, AP002075.1 
+Negative:  GNLY, CCL5, NKG7, CD247, PRF1, IL32, PRKCH, BCL11B, LEF1, INPP4B 
+       IL7R, GZMA, CAMK4, THEMIS, GZMH, RORA, VCAN, TXK, DPYD, TC2N 
+       AOAH, TRBC1, NEAT1, PITPNC1, PLCB1, SYNE2, STAT4, PDE3B, KLRD1, TGFBR3 
+PC_ 3 
+Positive:  LEF1, EEF1A1, CAMK4, BACH2, INPP4B, IL7R, PDE3B, MAML2, FHIT, TSHZ2 
+       BCL2, SERINC5, ANK3, NELL2, CCR7, LTB, TCF7, PRKCA, BCL11B, RPL11 
+       RPL13, FOXP1, AC139720.1, RPS27A, OXNAD1, RPS12, MLLT3, RPS2, RPL34, RPS27 
+Negative:  GNLY, NKG7, CCL5, PRF1, GZMH, GZMA, GZMB, CCL4, SPON2, KLRD1 
+       PTGDS, FGFBP2, CST7, KLRF1, TGFBR3, BNC2, CTSW, CLIC3, ADGRG1, PDGFD 
+       TCF4, IL2RB, NCAM1, PYHIN1, PPP2R2B, TRDC, A2M, MCTP2, ACTB, HOPX 
+PC_ 4 
+Positive:  TCF4, LINC01374, LINC01478, PTGDS, CUX2, AC023590.1, EPHB1, RHEX, LINC00996, PTPRS 
+       ZFAT, PLD4, COL26A1, CLEC4C, PLXNA4, LILRA4, FAM160A1, COL24A1, SCN9A, ITM2C 
+       CCDC50, NRP1, UGCG, JCHAIN, RGS7, RUNX2, SLC35F3, GZMB, AC007381.1, IRF8 
+Negative:  IGHM, GNLY, BANK1, IGKC, MS4A1, NKG7, PAX5, FCRL1, EBF1, RALGPS2 
+       CCL5, CD79A, OSBPL10, LINC00926, COL19A1, IGHD, PRF1, CD22, LIX1-AS1, CD79B 
+       STEAP1B, PLEKHG1, LARGE1, ADAM28, AP002075.1, BLK, GZMH, AC120193.1, GZMA, FCER2 
+PC_ 5 
+Positive:  CDKN1C, FCGR3A, TCF7L2, IFITM3, CST3, AIF1, MTSS1, LST1, MS4A7, ACTB 
+       PSAP, WARS, HLA-DPA1, CD74, SERPINA1, FCER1G, IFI30, COTL1, HLA-DRA, HLA-DRB1 
+       FMNL2, CFD, FTL, SMIM25, CSF1R, HLA-DPB1, TMSB4X, TYROBP, MAFB, S100A4 
+Negative:  VCAN, PLCB1, DPYD, ANXA1, PLXDC2, CD36, ARHGAP26, ACSL1, ARHGAP24, AC020916.1 
+       GNLY, LRMDA, DYSF, CSF3R, PDE4D, MEGF9, FNDC3B, S100A8, ADAMTSL4-AS1, TMTC2 
+       NAMPT, CREB5, S100A9, LRRK2, RAB11FIP1, RBM47, JUN, IGHM, SLC2A3, NRG1 </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: The default method for RunUMAP has changed from calling Python UMAP via reticulate to the R-native UWOT using the cosine metric
+To use Python UMAP via reticulate, set umap.method to 'umap-learn' and metric to 'correlation'
+This message will be shown once per session</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>18:50:27 UMAP embedding parameters a = 0.9922 b = 1.112</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Found more than one class "dist" in cache; using the first, from namespace 'spam'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Also defined by 'BiocGenerics'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>18:50:27 Read 10412 rows and found 50 numeric columns</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>18:50:27 Using Annoy for neighbor search, n_neighbors = 30</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Found more than one class "dist" in cache; using the first, from namespace 'spam'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Also defined by 'BiocGenerics'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>18:50:27 Building Annoy index with metric = cosine, n_trees = 50</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>0%   10   20   30   40   50   60   70   80   90   100%</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>[----|----|----|----|----|----|----|----|----|----|</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>**************************************************|
+18:50:29 Writing NN index file to temp file /tmp/RtmpdSHKE8/file3e54714490f01
+18:50:29 Searching Annoy index using 1 thread, search_k = 3000
+18:50:32 Annoy recall = 100%
+18:50:33 Commencing smooth kNN distance calibration using 1 thread with target n_neighbors = 30
+18:50:35 Initializing from normalized Laplacian + noise (using RSpectra)
+18:50:36 Commencing optimization for 200 epochs, with 442362 positive edges
+18:50:41 Optimization finished</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb66"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ATAC analysis</span></span>
+<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a><span class="co"># the first dimension excluded as this is typically correlated with sequencing depth</span></span>
+<span id="cb66-3"><a href="#cb66-3" aria-hidden="true" tabindex="-1"></a><span class="fu">DefaultAssay</span>(pbmc) <span class="ot">&lt;-</span> <span class="st">"ATAC"</span></span>
+<span id="cb66-4"><a href="#cb66-4" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RunTFIDF</span>(pbmc)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Performing TF-IDF normalization</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb68"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">FindTopFeatures</span>(pbmc, <span class="at">min.cutoff =</span> <span class="st">'q0'</span>)</span>
+<span id="cb68-2"><a href="#cb68-2" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RunSVD</span>(pbmc)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Running SVD
+Scaling cell embeddings</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb70"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RunUMAP</span>(pbmc, <span class="at">reduction =</span> <span class="st">'lsi'</span>, <span class="at">dims =</span> <span class="dv">2</span><span class="sc">:</span><span class="dv">50</span>, </span>
+<span id="cb70-2"><a href="#cb70-2" aria-hidden="true" tabindex="-1"></a>                <span class="at">reduction.name =</span> <span class="st">"umap.atac"</span>, <span class="at">reduction.key =</span> <span class="st">"atacUMAP_"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>18:53:36 UMAP embedding parameters a = 0.9922 b = 1.112
+Found more than one class "dist" in cache; using the first, from namespace 'spam'
+Also defined by 'BiocGenerics'
+18:53:36 Read 10412 rows and found 49 numeric columns
+18:53:36 Using Annoy for neighbor search, n_neighbors = 30
+Found more than one class "dist" in cache; using the first, from namespace 'spam'
+Also defined by 'BiocGenerics'
+18:53:36 Building Annoy index with metric = cosine, n_trees = 50
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+18:53:37 Writing NN index file to temp file /tmp/RtmpdSHKE8/file3e5474e1ec1f0
+18:53:37 Searching Annoy index using 1 thread, search_k = 3000
+18:53:41 Annoy recall = 100%
+18:53:42 Commencing smooth kNN distance calibration using 1 thread with target n_neighbors = 30
+18:53:43 Initializing from normalized Laplacian + noise (using RSpectra)
+18:53:44 Commencing optimization for 200 epochs, with 415934 positive edges
+18:53:49 Optimization finished</code></pre>
+</div>
+</div>
+</section>
+<section id="multimodalanalysis---calculate-wnn-graph" class="level2">
+<h2 class="anchored" data-anchor-id="multimodalanalysis---calculate-wnn-graph">MultiModalAnalysis - Calculate WNN graph</h2>
+<p>A WNN graph represents a weighted combination of RNA and ATAC-seq modalities. The WNN graph is used then for UMAP visualization and clustering.</p>
+<p><code>FindMultiModalNeighbors</code> function constructs a weighted nearest neighbor (WNN) graph. For each cell, the nearest neighbors are identifyed based on a weighted combination of two modalities. Takes as input two dimensional reductions, one computed for each modality.</p>
+<p><code>FindClusters</code> function identifies clusters of cells by a shared nearest neighbor (SNN) modularity optimization based clustering algorithm. First calculate k-nearest neighbors and construct the SNN graph. Then optimize the modularity function to determine clusters. Algorithm for modularity optimization (1 = original Louvain algorithm; 2 = Louvain algorithm with multilevel refinement; 3 = SLM (smart local moving) algorithm; 4 = Leiden algorithm)</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb72"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">FindMultiModalNeighbors</span>(pbmc, <span class="at">reduction.list =</span> <span class="fu">list</span>(<span class="st">"pca"</span>, <span class="st">"lsi"</span>), </span>
+<span id="cb72-2"><a href="#cb72-2" aria-hidden="true" tabindex="-1"></a>                                <span class="at">dims.list =</span> <span class="fu">list</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">50</span>, <span class="dv">2</span><span class="sc">:</span><span class="dv">50</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Calculating cell-specific modality weights</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Finding 20 nearest neighbors for each modality.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Calculating kernel bandwidths</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Finding multimodal neighbors</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Constructing multimodal KNN graph</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Constructing multimodal SNN graph</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb79"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RunUMAP</span>(pbmc, <span class="at">nn.name =</span> <span class="st">"weighted.nn"</span>, <span class="at">reduction.name =</span> <span class="st">"wnn.umap"</span>, </span>
+<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a>                <span class="at">reduction.key =</span> <span class="st">"wnnUMAP_"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>18:54:27 UMAP embedding parameters a = 0.9922 b = 1.112</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Found more than one class "dist" in cache; using the first, from namespace 'spam'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Also defined by 'BiocGenerics'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>18:54:28 Commencing smooth kNN distance calibration using 1 thread with target n_neighbors = 20
+18:54:29 Initializing from normalized Laplacian + noise (using RSpectra)
+18:54:30 Commencing optimization for 200 epochs, with 307862 positive edges
+18:54:35 Optimization finished</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb84"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">FindClusters</span>(pbmc, <span class="at">graph.name =</span> <span class="st">"wsnn"</span>, <span class="at">algorithm =</span> <span class="dv">3</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb85"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a><span class="fu">levels</span>(pbmc<span class="sc">$</span>seurat_clusters)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "0"  "1"  "2"  "3"  "4"  "5"  "6"  "7"  "8"  "9"  "10" "11" "12" "13" "14"
+[16] "15" "16" "17" "18" "19" "20" "21"</code></pre>
+</div>
+</div>
+</section>
+<section id="cluster-annotation" class="level2">
+<h2 class="anchored" data-anchor-id="cluster-annotation">Cluster Annotation</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb87"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a><span class="co"># perform sub-clustering on cluster 6 to find additional structure</span></span>
+<span id="cb87-2"><a href="#cb87-2" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">FindSubCluster</span>(pbmc, <span class="at">cluster =</span> <span class="dv">6</span>, <span class="at">graph.name =</span> <span class="st">"wsnn"</span>, <span class="at">algorithm =</span> <span class="dv">3</span>)</span>
+<span id="cb87-3"><a href="#cb87-3" aria-hidden="true" tabindex="-1"></a><span class="fu">Idents</span>(pbmc) <span class="ot">&lt;-</span> <span class="st">"sub.cluster"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb88"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unique</span>(pbmc<span class="sc">$</span>sub.cluster)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "1"   "5"   "2"   "15"  "6_0" "7"   "4"   "8"   "0"   "6_1" "14"  "3"  
+[13] "13"  "11"  "10"  "6_2" "16"  "21"  "12"  "17"  "9"   "18"  "19"  "20" </code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb90"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a><span class="co"># add annotations</span></span>
+<span id="cb90-2"><a href="#cb90-2" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'19'</span> <span class="ot">=</span> <span class="st">'pDC'</span>,<span class="st">'20'</span> <span class="ot">=</span> <span class="st">'HSPC'</span>,<span class="st">'15'</span> <span class="ot">=</span> <span class="st">'cDC'</span>)</span>
+<span id="cb90-3"><a href="#cb90-3" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'0'</span> <span class="ot">=</span> <span class="st">'CD14 Mono'</span>, <span class="st">'9'</span> <span class="ot">=</span><span class="st">'CD14 Mono'</span>, <span class="st">'5'</span> <span class="ot">=</span> <span class="st">'CD16 Mono'</span>)</span>
+<span id="cb90-4"><a href="#cb90-4" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'10'</span> <span class="ot">=</span> <span class="st">'Naive B'</span>, <span class="st">'11'</span> <span class="ot">=</span> <span class="st">'Intermediate B'</span>, <span class="st">'17'</span> <span class="ot">=</span> <span class="st">'Memory B'</span>, <span class="st">'21'</span> <span class="ot">=</span> <span class="st">'Plasma'</span>)</span>
+<span id="cb90-5"><a href="#cb90-5" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'7'</span> <span class="ot">=</span> <span class="st">'NK'</span>)</span>
+<span id="cb90-6"><a href="#cb90-6" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'4'</span> <span class="ot">=</span> <span class="st">'CD4 TCM'</span>, <span class="st">'13'</span><span class="ot">=</span> <span class="st">"CD4 TEM"</span>, <span class="st">'3'</span> <span class="ot">=</span> <span class="st">"CD4 TCM"</span>, <span class="st">'16'</span> <span class="ot">=</span><span class="st">"Treg"</span>, <span class="st">'1'</span> <span class="ot">=</span><span class="st">"CD4 Naive"</span>, <span class="st">'14'</span> <span class="ot">=</span> <span class="st">"CD4 Naive"</span>)</span>
+<span id="cb90-7"><a href="#cb90-7" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'2'</span> <span class="ot">=</span> <span class="st">'CD8 Naive'</span>, <span class="st">'8'</span><span class="ot">=</span> <span class="st">"CD8 Naive"</span>, <span class="st">'12'</span> <span class="ot">=</span> <span class="st">'CD8 TEM_1'</span>, <span class="st">'6_0'</span> <span class="ot">=</span> <span class="st">'CD8 TEM_2'</span>, <span class="st">'6_1'</span> <span class="ot">=</span><span class="st">'CD8 TEM_2'</span>, <span class="st">'6_4'</span> <span class="ot">=</span><span class="st">'CD8 TEM_2'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Cannot find identity 6_4</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb92"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'18'</span> <span class="ot">=</span> <span class="st">'MAIT'</span>)</span>
+<span id="cb92-2"><a href="#cb92-2" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">RenameIdents</span>(pbmc, <span class="st">'6_2'</span> <span class="ot">=</span><span class="st">'gdT'</span>, <span class="st">'6_3'</span> <span class="ot">=</span> <span class="st">'gdT'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Cannot find identity 6_3</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb94"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a>pbmc<span class="sc">$</span>celltype <span class="ot">&lt;-</span> <span class="fu">Idents</span>(pbmc)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="visualize-clustering" class="level2">
+<h2 class="anchored" data-anchor-id="visualize-clustering">Visualize Clustering</h2>
+<p>Clustering can be visualized based on gene expression, ATAC-seq, or WNN analysis. WNN analysis provides the clearest separation of cell states.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb95"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a>p1 <span class="ot">&lt;-</span> <span class="fu">DimPlot</span>(pbmc, <span class="at">reduction =</span> <span class="st">"umap.rna"</span>, <span class="at">group.by =</span> <span class="st">"celltype"</span>, </span>
+<span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a>              <span class="at">label =</span> <span class="cn">TRUE</span>, <span class="at">label.size =</span> <span class="fl">2.5</span>, <span class="at">repel =</span> <span class="cn">TRUE</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">"RNA"</span>)</span>
+<span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a>p2 <span class="ot">&lt;-</span> <span class="fu">DimPlot</span>(pbmc, <span class="at">reduction =</span> <span class="st">"umap.atac"</span>, <span class="at">group.by =</span> <span class="st">"celltype"</span>, </span>
+<span id="cb95-4"><a href="#cb95-4" aria-hidden="true" tabindex="-1"></a>              <span class="at">label =</span> <span class="cn">TRUE</span>, <span class="at">label.size =</span> <span class="fl">2.5</span>, <span class="at">repel =</span> <span class="cn">TRUE</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">"ATAC"</span>)</span>
+<span id="cb95-5"><a href="#cb95-5" aria-hidden="true" tabindex="-1"></a>p3 <span class="ot">&lt;-</span> <span class="fu">DimPlot</span>(pbmc, <span class="at">reduction =</span> <span class="st">"wnn.umap"</span>, <span class="at">group.by =</span> <span class="st">"celltype"</span>, </span>
+<span id="cb95-6"><a href="#cb95-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">label =</span> <span class="cn">TRUE</span>, <span class="at">label.size =</span> <span class="fl">2.5</span>, <span class="at">repel =</span> <span class="cn">TRUE</span>) <span class="sc">+</span> <span class="fu">ggtitle</span>(<span class="st">"WNN"</span>)</span>
+<span id="cb95-7"><a href="#cb95-7" aria-hidden="true" tabindex="-1"></a>p1 <span class="sc">+</span> p2 <span class="sc">+</span> p3 <span class="sc">&amp;</span> <span class="fu">NoLegend</span>() <span class="sc">&amp;</span> <span class="fu">theme</span>(<span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">hjust =</span> <span class="fl">0.5</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/figure-html/UMAPs-1.png" class="img-fluid" width="960"></p>
+</div>
+</div>
+<p>The ATAC-seq data assists in the separation of CD4 and CD8 T cell states - due to the presence of multiple loci that exhibit differential accessibility between different T cell subtypes. Below, visualization of ‘pseudobulk’ tracks of the CD8A locus alongside violin plots of gene expression levels.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb96"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a><span class="do">## to make the visualization easier, subset T cell clusters</span></span>
+<span id="cb96-2"><a href="#cb96-2" aria-hidden="true" tabindex="-1"></a>celltype.names <span class="ot">&lt;-</span> <span class="fu">levels</span>(pbmc)</span>
+<span id="cb96-3"><a href="#cb96-3" aria-hidden="true" tabindex="-1"></a>tcell.names <span class="ot">&lt;-</span> <span class="fu">grep</span>(<span class="st">"CD4|CD8|Treg"</span>, celltype.names, <span class="at">value =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb96-4"><a href="#cb96-4" aria-hidden="true" tabindex="-1"></a>tcells <span class="ot">&lt;-</span> <span class="fu">subset</span>(pbmc, <span class="at">idents =</span> tcell.names)</span>
+<span id="cb96-5"><a href="#cb96-5" aria-hidden="true" tabindex="-1"></a><span class="fu">CoveragePlot</span>(tcells, <span class="at">region =</span> <span class="st">'CD8A'</span>, <span class="at">features =</span> <span class="st">'CD8A'</span>, <span class="at">assay =</span> <span class="st">'ATAC'</span>, <span class="at">expression.assay =</span> <span class="st">'SCT'</span>, <span class="at">peaks =</span> <span class="cn">TRUE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 1 rows containing missing values (`geom_segment()`).</code></pre>
+</div>
+<div class="cell-output-display">
+<p><img src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/figure-html/coverageplotcd8-1.png" class="img-fluid" width="960"></p>
+</div>
+</div>
+</section>
+<section id="examine-accessible-regions-of-each-cell-for-enriched-motifs-determination" class="level2">
+<h2 class="anchored" data-anchor-id="examine-accessible-regions-of-each-cell-for-enriched-motifs-determination">Examine Accessible Regions of each cell for enriched motifs determination</h2>
+<p>Use <a href="https://www.nature.com/articles/nmeth.4401"><code>chromVAR</code></a> package for inferring transcription-factor-associated accessibility from single-cell epigenomic data. chromVAR analyses sparse chromatin-accessibility data by estimating gain or loss of accessibility within peaks sharing the same motif or annotation while controlling for technical biases. chromVAR enables accurate clustering of scATAC-seq profiles and characterization of known and <em>de novo</em> sequence motifs associated with variation in chromatin accessibility. chromVAR takes as inputs aligned fragments (filtered for duplicates and low quality) from ATAC-seq experiments as well as genomic annotations/ motif positions, and computes a per-cell accessibility score for known motifs, and adds the scores as a third assay <code>chromvar</code> in the Seurat object.</p>
+<p>Load additional libraries</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb98"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(chromVAR) <span class="co"># analysis of motif accessibility in scATAC-seq</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code></code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb100"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb100-1"><a href="#cb100-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(JASPAR2020) <span class="co"># data package for JASPAR database of transcription factor (TF) binding profiles/motifs</span></span>
+<span id="cb100-2"><a href="#cb100-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(TFBSTools) <span class="co"># tools for transcription factor binding site (TFBS) analysis</span></span>
+<span id="cb100-3"><a href="#cb100-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(motifmatchr) <span class="co"># motif matching</span></span>
+<span id="cb100-4"><a href="#cb100-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(BSgenome.Hsapiens.UCSC.hg38) <span class="co"># full genomic sequences for Hsapiens (UCSC hg38) used by chromVAR</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: BSgenome</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: Biostrings</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: XVector</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'Biostrings'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:base':
+
+    strsplit</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: BiocIO</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: rtracklayer</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'rtracklayer'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:BiocIO':
+
+    FileForFormat</code></pre>
+</div>
+</div>
+<p><code>getMatrixSet</code> function fetches matrix data for all matrices in the JASPAR database matching criteria defined by the named arguments and returns a PFMatrixList object. JASPAR is a regularly maintained open-access database storing manually curated TF binding preferences as position frequency matrices (PFMs). PFMs summarize nucleotide occurrences at each position in a set of observed TF-DNA interactions. PFMs can be transformed into probabilistic models to construct position weight matrices (PWMs) or position-specific scoring matrices (PSSMs), which then can be used to scan any DNA sequence and predict transcription factors binding sites (TFBSs).</p>
+<p><code>CreateMotifMatrix</code> function creates a motif x feature matrix from a set of genomic ranges, the genome and a set of position weight matrices.</p>
+<p><code>RunChromVAR</code> function is a wrapper to run <code>chromVAR</code> on an assay with a motif object present. Will return a new Seurat assay with the motif activities (the deviations in chromatin accessibility across the set of regions) as a new assay.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb110"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb110-1"><a href="#cb110-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Scan the DNA sequence of each peak for the presence of each motif, and create a Motif object</span></span>
+<span id="cb110-2"><a href="#cb110-2" aria-hidden="true" tabindex="-1"></a><span class="fu">DefaultAssay</span>(pbmc) <span class="ot">&lt;-</span> <span class="st">"ATAC"</span></span>
+<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a>pwm_set <span class="ot">&lt;-</span> TFBSTools<span class="sc">::</span><span class="fu">getMatrixSet</span>(<span class="at">x =</span> JASPAR2020, <span class="at">opts =</span> <span class="fu">list</span>(<span class="at">species =</span> <span class="dv">9606</span>, <span class="at">all_versions =</span> <span class="cn">FALSE</span>))</span>
+<span id="cb110-4"><a href="#cb110-4" aria-hidden="true" tabindex="-1"></a>motif.matrix <span class="ot">&lt;-</span> Signac<span class="sc">::</span><span class="fu">CreateMotifMatrix</span>(<span class="at">features =</span> <span class="fu">granges</span>(pbmc), <span class="at">pwm =</span> pwm_set, </span>
+<span id="cb110-5"><a href="#cb110-5" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">genome =</span> <span class="st">'hg38'</span>, <span class="at">use.counts =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb110-6"><a href="#cb110-6" aria-hidden="true" tabindex="-1"></a>motif.object <span class="ot">&lt;-</span> Signac<span class="sc">::</span><span class="fu">CreateMotifObject</span>(<span class="at">data =</span> motif.matrix, <span class="at">pwm =</span> pwm_set)</span>
+<span id="cb110-7"><a href="#cb110-7" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> <span class="fu">SetAssayData</span>(pbmc, <span class="at">assay =</span> <span class="st">'ATAC'</span>, <span class="at">slot =</span> <span class="st">'motifs'</span>, <span class="at">new.data =</span> motif.object)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: The `slot` argument of `SetAssayData()` is deprecated as of SeuratObject 5.0.0.
+ℹ Please use the `layer` argument instead.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb112"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb112-1"><a href="#cb112-1" aria-hidden="true" tabindex="-1"></a><span class="co"># this step can take 30-60 minutes </span></span>
+<span id="cb112-2"><a href="#cb112-2" aria-hidden="true" tabindex="-1"></a>pbmc <span class="ot">&lt;-</span> Signac<span class="sc">::</span><span class="fu">RunChromVAR</span>(</span>
+<span id="cb112-3"><a href="#cb112-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">object =</span> pbmc,</span>
+<span id="cb112-4"><a href="#cb112-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">genome =</span> BSgenome.Hsapiens.UCSC.hg38</span>
+<span id="cb112-5"><a href="#cb112-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Computing GC bias per region</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Selecting background regions</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Computing deviations from background</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Constructing chromVAR assay</code></pre>
+</div>
+</div>
+</section>
+<section id="explore-the-multimodal-dataset-to-identify-key-regulators-of-each-cell-state" class="level2">
+<h2 class="anchored" data-anchor-id="explore-the-multimodal-dataset-to-identify-key-regulators-of-each-cell-state">Explore the Multimodal Dataset to Identify Key Regulators of Each Cell State</h2>
+<p>Paired data provides a unique opportunity to identify transcription factors (TFs) that satisfy multiple criteria, helping to narrow down the list of putative regulators to the most likely candidates.</p>
+<p><strong>The aim is to identify TFs whose expression is enriched in multiple cell types in the RNA measurements, but <em>also</em> have enriched accessibility for their motifs in the ATAC measurements.</strong></p>
+<p>As an example and positive control, the CCAAT Enhancer Binding Protein (CEBP) family of proteins, including the TF CEBPB, have been repeatedly shown to play important roles in the differentiation and function of myeloid cells including monocytes and dendritic cells. The plots below that both the expression of the CEBPB, and the accessibility of the MA0466.2.4 motif (which encodes the binding site for CEBPB), are both enriched in monocytes.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb117"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="co">#returns MA0466.2</span></span>
+<span id="cb117-2"><a href="#cb117-2" aria-hidden="true" tabindex="-1"></a>motif.name <span class="ot">&lt;-</span> Signac<span class="sc">::</span><span class="fu">ConvertMotifID</span>(pbmc, <span class="at">name =</span> <span class="st">'CEBPB'</span>)</span>
+<span id="cb117-3"><a href="#cb117-3" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> <span class="st">"sct_CEBPB"</span>, <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span>
+<span id="cb117-4"><a href="#cb117-4" aria-hidden="true" tabindex="-1"></a>motif_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> motif.name, <span class="at">min.cutoff =</span> <span class="dv">0</span>, </span>
+<span id="cb117-5"><a href="#cb117-5" aria-hidden="true" tabindex="-1"></a>                          <span class="at">cols =</span> <span class="fu">c</span>(<span class="st">"lightgrey"</span>, <span class="st">"darkred"</span>), <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: No layers found matching search pattern provided</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Could not find MA0466.2 in the default search locations, found in
+'chromvar' assay instead</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb120"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb120-1"><a href="#cb120-1" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="sc">|</span> motif_plot</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/figure-html/CEBPB-1.png" class="img-fluid" width="960"></p>
+</div>
+</div>
+</section>
+<section id="similarity-search-across-all-cell-types" class="level2">
+<h2 class="anchored" data-anchor-id="similarity-search-across-all-cell-types">Similarity search across all cell types</h2>
+<p>Use the <code>presto</code> package to perform fast differential expression. Run two tests:</p>
+<ul>
+<li><p>one using gene expression data, and</p></li>
+<li><p>the other using chromVAR motif accessibilities. <code>presto</code> calculates a p-value based on the Wilcox rank sum test, which is also the default test in Seurat, and we restrict our search to TFs that return significant results in both tests.</p></li>
+</ul>
+<p><code>presto</code> calculates a p-value based on the Wilcox rank sum test, which is also the default test in Seurat, and restrict the search to TFs that return significant results in both tests.</p>
+<p><code>presto</code> also calculates an “AUC” statistic, which reflects the power of each gene (or motif) to serve as a marker of cell type. A maximum AUC value of 1 indicates a perfect marker. Since the AUC statistic is on the same scale for both genes and motifs, the average of the AUC values from the two tests is taken and used to rank TFs for each cell type.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb121"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">"presto"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: Rcpp</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: data.table</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'data.table'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:dplyr':
+
+    between, first, last</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:GenomicRanges':
+
+    shift</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following object is masked from 'package:IRanges':
+
+    shift</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:S4Vectors':
+
+    first, second</code></pre>
+</div>
+</div>
+<p><code>presto:::wilcoxauc.Seurat</code> computes auROC and Wilcoxon p-value based on Gaussian approximation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb129"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb129-1"><a href="#cb129-1" aria-hidden="true" tabindex="-1"></a>markers_rna <span class="ot">&lt;-</span> presto<span class="sc">:::</span><span class="fu">wilcoxauc.Seurat</span>(<span class="at">X =</span> pbmc, <span class="at">group_by =</span> <span class="st">'celltype'</span>, </span>
+<span id="cb129-2"><a href="#cb129-2" aria-hidden="true" tabindex="-1"></a>                                         <span class="at">assay =</span> <span class="st">'data'</span>, <span class="at">seurat_assay =</span> <span class="st">'SCT'</span>)</span>
+<span id="cb129-3"><a href="#cb129-3" aria-hidden="true" tabindex="-1"></a>markers_motifs <span class="ot">&lt;-</span> presto<span class="sc">:::</span><span class="fu">wilcoxauc.Seurat</span>(<span class="at">X =</span> pbmc, <span class="at">group_by =</span> <span class="st">'celltype'</span>, </span>
+<span id="cb129-4"><a href="#cb129-4" aria-hidden="true" tabindex="-1"></a>                                            <span class="at">assay =</span> <span class="st">'data'</span>, <span class="at">seurat_assay =</span> <span class="st">'chromvar'</span>)</span>
+<span id="cb129-5"><a href="#cb129-5" aria-hidden="true" tabindex="-1"></a>motif.names <span class="ot">&lt;-</span> markers_motifs<span class="sc">$</span>feature</span>
+<span id="cb129-6"><a href="#cb129-6" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(markers_rna) <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"RNA."</span>, <span class="fu">colnames</span>(markers_rna))</span>
+<span id="cb129-7"><a href="#cb129-7" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(markers_motifs) <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"motif."</span>, <span class="fu">colnames</span>(markers_motifs))</span>
+<span id="cb129-8"><a href="#cb129-8" aria-hidden="true" tabindex="-1"></a>markers_rna<span class="sc">$</span>gene <span class="ot">&lt;-</span> markers_rna<span class="sc">$</span>RNA.feature</span>
+<span id="cb129-9"><a href="#cb129-9" aria-hidden="true" tabindex="-1"></a>markers_motifs<span class="sc">$</span>gene <span class="ot">&lt;-</span> <span class="fu">ConvertMotifID</span>(pbmc, <span class="at">id =</span> motif.names)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb130"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb130-1"><a href="#cb130-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(markers_rna)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  RNA.feature RNA.group RNA.avgExpr    RNA.logFC RNA.statistic   RNA.auc
+1  AL627309.1 CD14 Mono 0.010973772 0.0080623614      10660771 0.5056038
+2  AL627309.5 CD14 Mono 0.076232200 0.0613814621      11444675 0.5427817
+3  AL627309.4 CD14 Mono 0.006189974 0.0041084506      10602874 0.5028579
+4  AL669831.2 CD14 Mono 0.001258894 0.0008063892      10554878 0.5005817
+5   LINC01409 CD14 Mono 0.040223312 0.0028718469      10582572 0.5018951
+6      FAM87B CD14 Mono 0.002517789 0.0019747825      10572650 0.5014245
+      RNA.pval     RNA.padj RNA.pct_in RNA.pct_out       gene
+1 1.500696e-09 6.309440e-09  1.5256084  0.40475258 AL627309.1
+2 1.895069e-79 3.279907e-78 10.6429350  2.08904557 AL627309.5
+3 1.246041e-04 3.562474e-04  0.8717762  0.30030030 AL627309.4
+4 9.103411e-02 1.528564e-01  0.1816201  0.06528267 AL669831.2
+5 4.426693e-01 5.585537e-01  5.4849255  5.10510511  LINC01409
+6 1.064617e-03 2.710954e-03  0.3632401  0.07833921     FAM87B</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb132"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb132-1"><a href="#cb132-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(markers_motifs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  motif.feature motif.group motif.avgExpr motif.logFC motif.statistic motif.auc
+1      MA0030.1   CD14 Mono    -0.1928016  -0.2582115         8762222 0.4155621
+2      MA0031.1   CD14 Mono    -0.4889760  -0.6695225         6433869 0.3051363
+3      MA0051.1   CD14 Mono     0.1772915   0.2720562        12210863 0.5791194
+4      MA0057.1   CD14 Mono     0.6746273   0.9439923        16390072 0.7773249
+5      MA0059.1   CD14 Mono     0.8208255   1.1467100        16125866 0.7647945
+6      MA0066.1   CD14 Mono     1.4746132   2.0660066        17984341 0.8529356
+     motif.pval    motif.padj motif.pct_in motif.pct_out        gene
+1  1.447808e-39  1.829267e-39          100           100       FOXF2
+2 1.159386e-202 2.145881e-202          100           100       FOXD1
+3  6.004374e-35  7.423377e-35          100           100        IRF2
+4  0.000000e+00  0.000000e+00          100           100 MZF1(var.2)
+5  0.000000e+00  0.000000e+00          100           100    MAX::MYC
+6  0.000000e+00  0.000000e+00          100           100       PPARG</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb134"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb134-1"><a href="#cb134-1" aria-hidden="true" tabindex="-1"></a><span class="co"># function to rank TFs for each cell type</span></span>
+<span id="cb134-2"><a href="#cb134-2" aria-hidden="true" tabindex="-1"></a>topTFs <span class="ot">&lt;-</span> <span class="cf">function</span>(celltype, <span class="at">padj.cutoff =</span> <span class="fl">1e-2</span>) {</span>
+<span id="cb134-3"><a href="#cb134-3" aria-hidden="true" tabindex="-1"></a>  ctmarkers_rna <span class="ot">&lt;-</span> dplyr<span class="sc">::</span><span class="fu">filter</span>(</span>
+<span id="cb134-4"><a href="#cb134-4" aria-hidden="true" tabindex="-1"></a>    markers_rna, RNA.group <span class="sc">==</span> celltype, RNA.padj <span class="sc">&lt;</span> padj.cutoff, RNA.logFC <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb134-5"><a href="#cb134-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">arrange</span>(<span class="sc">-</span>RNA.auc)</span>
+<span id="cb134-6"><a href="#cb134-6" aria-hidden="true" tabindex="-1"></a>  ctmarkers_motif <span class="ot">&lt;-</span> dplyr<span class="sc">::</span><span class="fu">filter</span>(</span>
+<span id="cb134-7"><a href="#cb134-7" aria-hidden="true" tabindex="-1"></a>    markers_motifs, motif.group <span class="sc">==</span> celltype, motif.padj <span class="sc">&lt;</span> padj.cutoff, motif.logFC <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb134-8"><a href="#cb134-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">arrange</span>(<span class="sc">-</span>motif.auc)</span>
+<span id="cb134-9"><a href="#cb134-9" aria-hidden="true" tabindex="-1"></a>  top_tfs <span class="ot">&lt;-</span> <span class="fu">inner_join</span>(</span>
+<span id="cb134-10"><a href="#cb134-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> ctmarkers_rna[, <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">11</span>, <span class="dv">6</span>, <span class="dv">7</span>)], </span>
+<span id="cb134-11"><a href="#cb134-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> ctmarkers_motif[, <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">11</span>, <span class="dv">6</span>, <span class="dv">7</span>)], <span class="at">by =</span> <span class="st">"gene"</span></span>
+<span id="cb134-12"><a href="#cb134-12" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb134-13"><a href="#cb134-13" aria-hidden="true" tabindex="-1"></a>  top_tfs<span class="sc">$</span>avg_auc <span class="ot">&lt;-</span> (top_tfs<span class="sc">$</span>RNA.auc <span class="sc">+</span> top_tfs<span class="sc">$</span>motif.auc) <span class="sc">/</span> <span class="dv">2</span></span>
+<span id="cb134-14"><a href="#cb134-14" aria-hidden="true" tabindex="-1"></a>  top_tfs <span class="ot">&lt;-</span> <span class="fu">arrange</span>(top_tfs, <span class="sc">-</span>avg_auc)</span>
+<span id="cb134-15"><a href="#cb134-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(top_tfs)</span>
+<span id="cb134-16"><a href="#cb134-16" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="compute-and-visualize-putative-regulators-for-any-cell-type" class="level2">
+<h2 class="anchored" data-anchor-id="compute-and-visualize-putative-regulators-for-any-cell-type">Compute, and visualize, putative regulators for any cell type</h2>
+<p>Recover well-established regulators, including <a href="https://www.sciencedirect.com/science/article/pii/S1074761304000767">TBX21 for NK cells</a>, <a href="https://pubmed.ncbi.nlm.nih.gov/16767092/">IRF4 for plasma cells</a>, <a href="https://ashpublications.org/blood/article/124/21/1577/88774/Sox4-Is-Required-for-the-Formation-and-Maintenance">SOX4 for hematopoietic progenitors</a>, <a href="https://www.nature.com/articles/ni.2641">EBF1 and PAX5 for B cells</a>, <a href="https://www.nature.com/articles/s41590-018-0136-9">IRF8 and TCF4 for pDC</a>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb135"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb135-1"><a href="#cb135-1" aria-hidden="true" tabindex="-1"></a><span class="co"># identify top markers in NK and visualize</span></span>
+<span id="cb135-2"><a href="#cb135-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">topTFs</span>(<span class="st">"NK"</span>), <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  RNA.group  gene   RNA.auc      RNA.pval motif.group motif.feature motif.auc
+1        NK TBX21 0.7255167  0.000000e+00          NK      MA0690.1 0.9160049
+2        NK EOMES 0.5896136 7.202551e-101          NK      MA0800.1 0.9233599
+3        NK RUNX3 0.7705848 3.938954e-120          NK      MA0684.2 0.6817032
+     motif.pval   avg_auc
+1 4.412602e-205 0.8207608
+2 2.532814e-212 0.7564868
+3  1.229743e-40 0.7261440</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb137"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb137-1"><a href="#cb137-1" aria-hidden="true" tabindex="-1"></a>motif.name <span class="ot">&lt;-</span> <span class="fu">ConvertMotifID</span>(pbmc, <span class="at">name =</span> <span class="st">'TBX21'</span>)</span>
+<span id="cb137-2"><a href="#cb137-2" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> <span class="st">"sct_TBX21"</span>, <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span>
+<span id="cb137-3"><a href="#cb137-3" aria-hidden="true" tabindex="-1"></a>motif_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> motif.name, <span class="at">min.cutoff =</span> <span class="dv">0</span>, </span>
+<span id="cb137-4"><a href="#cb137-4" aria-hidden="true" tabindex="-1"></a>                          <span class="at">cols =</span> <span class="fu">c</span>(<span class="st">"lightgrey"</span>, <span class="st">"darkred"</span>), <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: No layers found matching search pattern provided</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Could not find MA0690.1 in the default search locations, found in
+'chromvar' assay instead</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb140"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb140-1"><a href="#cb140-1" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="sc">|</span> motif_plot</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/figure-html/NK-1.png" class="img-fluid" width="960"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb141"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb141-1"><a href="#cb141-1" aria-hidden="true" tabindex="-1"></a><span class="co"># identify top markers in pDC and visualize</span></span>
+<span id="cb141-2"><a href="#cb141-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">topTFs</span>(<span class="st">"pDC"</span>), <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  RNA.group gene   RNA.auc      RNA.pval motif.group motif.feature motif.auc
+1       pDC TCF4 0.9998773 1.881543e-162         pDC      MA0830.2 0.9965481
+2       pDC IRF8 0.9907541 1.197641e-123         pDC      MA0652.1 0.8833112
+3       pDC SPIB 0.9113825  0.000000e+00         pDC      MA0081.2 0.9068540
+    motif.pval   avg_auc
+1 1.785897e-69 0.9982127
+2 3.982413e-42 0.9370327
+3 3.083509e-47 0.9091182</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb143"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb143-1"><a href="#cb143-1" aria-hidden="true" tabindex="-1"></a>motif.name <span class="ot">&lt;-</span> <span class="fu">ConvertMotifID</span>(pbmc, <span class="at">name =</span> <span class="st">'TCF4'</span>)</span>
+<span id="cb143-2"><a href="#cb143-2" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> <span class="st">"sct_TCF4"</span>, <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span>
+<span id="cb143-3"><a href="#cb143-3" aria-hidden="true" tabindex="-1"></a>motif_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> motif.name, <span class="at">min.cutoff =</span> <span class="dv">0</span>, </span>
+<span id="cb143-4"><a href="#cb143-4" aria-hidden="true" tabindex="-1"></a>                          <span class="at">cols =</span> <span class="fu">c</span>(<span class="st">"lightgrey"</span>, <span class="st">"darkred"</span>), <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: No layers found matching search pattern provided</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Could not find MA0830.2 in the default search locations, found in
+'chromvar' assay instead</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb146"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb146-1"><a href="#cb146-1" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="sc">|</span> motif_plot</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/figure-html/pDC-1.png" class="img-fluid" width="960"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb147"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb147-1"><a href="#cb147-1" aria-hidden="true" tabindex="-1"></a><span class="co"># identify top markers in HSPC and visualize</span></span>
+<span id="cb147-2"><a href="#cb147-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">topTFs</span>(<span class="st">"CD16 Mono"</span>),<span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  RNA.group  gene   RNA.auc      RNA.pval motif.group motif.feature motif.auc
+1 CD16 Mono  TCF7 0.6221807  1.483817e-26   CD16 Mono      MA0769.2 0.6937599
+2 CD16 Mono  LEF1 0.6230641  9.550998e-27   CD16 Mono      MA0768.1 0.6415456
+3 CD16 Mono GATA3 0.6855747 3.403297e-132   CD16 Mono      MA0037.3 0.5653994
+    motif.pval   avg_auc
+1 1.570860e-52 0.6579703
+2 7.774662e-29 0.6323048
+3 2.628062e-07 0.6254871</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb149"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb149-1"><a href="#cb149-1" aria-hidden="true" tabindex="-1"></a>motif.name <span class="ot">&lt;-</span> <span class="fu">ConvertMotifID</span>(pbmc, <span class="at">name =</span> <span class="st">'SPI1'</span>)</span>
+<span id="cb149-2"><a href="#cb149-2" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> <span class="st">"sct_SPI1"</span>, <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span>
+<span id="cb149-3"><a href="#cb149-3" aria-hidden="true" tabindex="-1"></a>motif_plot <span class="ot">&lt;-</span> <span class="fu">FeaturePlot</span>(pbmc, <span class="at">features =</span> motif.name, <span class="at">min.cutoff =</span> <span class="dv">0</span>, </span>
+<span id="cb149-4"><a href="#cb149-4" aria-hidden="true" tabindex="-1"></a>                          <span class="at">cols =</span> <span class="fu">c</span>(<span class="st">"lightgrey"</span>, <span class="st">"darkred"</span>), <span class="at">reduction =</span> <span class="st">'wnn.umap'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: No layers found matching search pattern provided</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Could not find MA0080.5 in the default search locations, found in
+'chromvar' assay instead</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb152"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb152-1"><a href="#cb152-1" aria-hidden="true" tabindex="-1"></a>gene_plot <span class="sc">|</span> motif_plot</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="scRNA-seq_scATAC-seq_integration_WNN-analysis_files/figure-html/CD16Mono-1.png" class="img-fluid" width="960"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb153"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb153-1"><a href="#cb153-1" aria-hidden="true" tabindex="-1"></a><span class="co"># identify top markers in other cell types</span></span>
+<span id="cb153-2"><a href="#cb153-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">topTFs</span>(<span class="st">"Naive B"</span>), <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  RNA.group   gene   RNA.auc      RNA.pval motif.group motif.feature motif.auc
+1   Naive B   TCF4 0.8356916 1.914018e-238     Naive B      MA0830.2 0.9060359
+2   Naive B POU2F2 0.6979452  6.065960e-43     Naive B      MA0507.1 0.9738541
+3   Naive B   EBF1 0.9123582  0.000000e+00     Naive B      MA0154.4 0.7554676
+     motif.pval   avg_auc
+1 1.554535e-149 0.8708638
+2 6.485324e-203 0.8358997
+3  2.387243e-60 0.8339129</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb155"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb155-1"><a href="#cb155-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">topTFs</span>(<span class="st">"HSPC"</span>), <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  RNA.group  gene   RNA.auc     RNA.pval motif.group motif.feature motif.auc
+1      HSPC  SOX4 0.9864425 2.831723e-71        HSPC      MA0867.2 0.6830497
+2      HSPC GATA2 0.7115385 0.000000e+00        HSPC      MA0036.3 0.8275008
+3      HSPC MEIS1 0.8254177 0.000000e+00        HSPC      MA0498.2 0.6924225
+    motif.pval   avg_auc
+1 1.241915e-03 0.8347461
+2 7.591798e-09 0.7695196
+3 6.877492e-04 0.7589201</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb157"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb157-1"><a href="#cb157-1" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(<span class="fu">topTFs</span>(<span class="st">"Plasma"</span>), <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  RNA.group  gene   RNA.auc     RNA.pval motif.group motif.feature motif.auc
+1    Plasma  IRF4 0.8189420 5.329976e-35      Plasma      MA1419.1 0.9776046
+2    Plasma MEF2C 0.9108487 3.135227e-12      Plasma      MA0497.1 0.7596637
+3    Plasma  TCF4 0.8306796 1.041100e-13      Plasma      MA0830.2 0.7840848
+    motif.pval   avg_auc
+1 2.334627e-12 0.8982733
+2 1.374353e-04 0.8352562
+3 3.028306e-05 0.8073822</code></pre>
+</div>
+</div>
+<details>
+<summary>
+<strong>Session Info</strong>
+</summary>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb159"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb159-1"><a href="#cb159-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sessionInfo</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>R version 4.3.2 (2023-10-31)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 22.04.3 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3 
+LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.20.so;  LAPACK version 3.10.0
+
+locale:
+ [1] LC_CTYPE=en_CA.UTF-8       LC_NUMERIC=C              
+ [3] LC_TIME=en_CA.UTF-8        LC_COLLATE=en_CA.UTF-8    
+ [5] LC_MONETARY=en_CA.UTF-8    LC_MESSAGES=en_CA.UTF-8   
+ [7] LC_PAPER=en_CA.UTF-8       LC_NAME=C                 
+ [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+[11] LC_MEASUREMENT=en_CA.UTF-8 LC_IDENTIFICATION=C       
+
+time zone: America/Vancouver
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats4    stats     graphics  grDevices utils     datasets  methods  
+[8] base     
+
+other attached packages:
+ [1] presto_1.0.0                      data.table_1.14.10               
+ [3] Rcpp_1.0.11                       BSgenome.Hsapiens.UCSC.hg38_1.4.5
+ [5] BSgenome_1.70.1                   rtracklayer_1.62.0               
+ [7] BiocIO_1.12.0                     Biostrings_2.70.1                
+ [9] XVector_0.42.0                    motifmatchr_1.24.0               
+[11] TFBSTools_1.40.0                  JASPAR2020_0.99.10               
+[13] chromVAR_1.24.0                   ggplot2_3.4.4                    
+[15] dplyr_1.1.4                       EnsDb.Hsapiens.v86_2.99.0        
+[17] ensembldb_2.26.0                  AnnotationFilter_1.26.0          
+[19] GenomicFeatures_1.54.1            AnnotationDbi_1.64.1             
+[21] Biobase_2.62.0                    GenomicRanges_1.54.1             
+[23] GenomeInfoDb_1.38.1               IRanges_2.36.0                   
+[25] S4Vectors_0.40.2                  BiocGenerics_0.48.1              
+[27] Signac_1.12.0                     Seurat_5.0.1                     
+[29] SeuratObject_5.0.1                sp_2.1-2                         
+
+loaded via a namespace (and not attached):
+  [1] ProtGenerics_1.34.0         matrixStats_1.1.0          
+  [3] spatstat.sparse_3.0-3       bitops_1.0-7               
+  [5] DirichletMultinomial_1.44.0 httr_1.4.7                 
+  [7] RColorBrewer_1.1-3          tools_4.3.2                
+  [9] sctransform_0.4.1           backports_1.4.1            
+ [11] DT_0.30                     utf8_1.2.4                 
+ [13] R6_2.5.1                    lazyeval_0.2.2             
+ [15] uwot_0.1.16                 withr_2.5.2                
+ [17] prettyunits_1.2.0           gridExtra_2.3              
+ [19] progressr_0.14.0            cli_3.6.1                  
+ [21] spatstat.explore_3.2-5      fastDummies_1.7.3          
+ [23] labeling_0.4.3              spatstat.data_3.0-3        
+ [25] readr_2.1.4                 ggridges_0.5.4             
+ [27] pbapply_1.7-2               Rsamtools_2.18.0           
+ [29] foreign_0.8-86              R.utils_2.12.3             
+ [31] dichromat_2.0-0.1           parallelly_1.36.0          
+ [33] rstudioapi_0.15.0           RSQLite_2.3.4              
+ [35] generics_0.1.3              gtools_3.9.5               
+ [37] ica_1.0-3                   spatstat.random_3.2-2      
+ [39] GO.db_3.18.0                Matrix_1.6-3               
+ [41] ggbeeswarm_0.7.2            fansi_1.0.6                
+ [43] abind_1.4-5                 R.methodsS3_1.8.2          
+ [45] lifecycle_1.0.4             yaml_2.3.7                 
+ [47] SummarizedExperiment_1.32.0 SparseArray_1.2.2          
+ [49] BiocFileCache_2.10.1        Rtsne_0.17                 
+ [51] glmGamPoi_1.14.0            grid_4.3.2                 
+ [53] blob_1.2.4                  promises_1.2.1             
+ [55] crayon_1.5.2                miniUI_0.1.1.1             
+ [57] lattice_0.22-5              cowplot_1.1.1              
+ [59] annotate_1.80.0             KEGGREST_1.42.0            
+ [61] pillar_1.9.0                knitr_1.45                 
+ [63] rjson_0.2.21                future.apply_1.11.0        
+ [65] codetools_0.2-19            fastmatch_1.1-4            
+ [67] leiden_0.4.3.1              glue_1.6.2                 
+ [69] vctrs_0.6.5                 png_0.1-8                  
+ [71] spam_2.10-0                 poweRlaw_0.70.6            
+ [73] gtable_0.3.4                cachem_1.0.8               
+ [75] xfun_0.41                   S4Arrays_1.2.0             
+ [77] mime_0.12                   pracma_2.4.4               
+ [79] survival_3.5-7              RcppRoll_0.3.0             
+ [81] ellipsis_0.3.2              fitdistrplus_1.1-11        
+ [83] ROCR_1.0-11                 nlme_3.1-163               
+ [85] bit64_4.0.5                 progress_1.2.3             
+ [87] filelock_1.0.2              RcppAnnoy_0.0.21           
+ [89] irlba_2.3.5.1               vipor_0.4.5                
+ [91] KernSmooth_2.23-22          rpart_4.1.21               
+ [93] seqLogo_1.68.0              colorspace_2.1-0           
+ [95] DBI_1.1.3                   Hmisc_5.1-1                
+ [97] nnet_7.3-19                 ggrastr_1.0.2              
+ [99] tidyselect_1.2.0            bit_4.0.5                  
+[101] compiler_4.3.2              curl_5.2.0                 
+[103] htmlTable_2.4.2             hdf5r_1.3.8                
+[105] xml2_1.3.6                  DelayedArray_0.28.0        
+[107] plotly_4.10.3               caTools_1.18.2             
+[109] checkmate_2.3.1             scales_1.3.0               
+[111] lmtest_0.9-40               rappdirs_0.3.3             
+[113] nabor_0.5.0                 stringr_1.5.1              
+[115] digest_0.6.33               goftest_1.2-3              
+[117] spatstat.utils_3.0-4        rmarkdown_2.25             
+[119] htmltools_0.5.7             pkgconfig_2.0.3            
+[121] base64enc_0.1-3             sparseMatrixStats_1.14.0   
+[123] MatrixGenerics_1.14.0       dbplyr_2.4.0               
+[125] fastmap_1.1.1               rlang_1.1.2                
+[127] htmlwidgets_1.6.4           shiny_1.8.0                
+[129] DelayedMatrixStats_1.24.0   farver_2.1.1               
+[131] zoo_1.8-12                  jsonlite_1.8.8             
+[133] BiocParallel_1.36.0         R.oo_1.25.0                
+[135] VariantAnnotation_1.48.1    RCurl_1.98-1.13            
+[137] magrittr_2.0.3              Formula_1.2-5              
+[139] GenomeInfoDbData_1.2.11     dotCall64_1.1-1            
+[141] patchwork_1.1.3             munsell_0.5.0              
+[143] reticulate_1.34.0           stringi_1.8.2              
+[145] zlibbioc_1.48.0             MASS_7.3-60                
+[147] plyr_1.8.9                  parallel_4.3.2             
+[149] listenv_0.9.0               ggrepel_0.9.4              
+[151] CNEr_1.38.0                 deldir_2.0-2               
+[153] splines_4.3.2               tensor_1.5                 
+[155] hms_1.1.3                   igraph_1.5.1               
+[157] spatstat.geom_3.2-7         RcppHNSW_0.5.0             
+[159] reshape2_1.4.4              biomaRt_2.58.0             
+[161] TFMPvalue_0.0.9             XML_3.99-0.16              
+[163] evaluate_0.23               biovizBase_1.50.0          
+[165] tzdb_0.4.0                  httpuv_1.6.13              
+[167] RANN_2.6.1                  tidyr_1.3.0                
+[169] purrr_1.0.2                 polyclip_1.10-6            
+[171] future_1.33.0               scattermore_1.2            
+[173] xtable_1.8-4                restfulr_0.0.15            
+[175] RSpectra_0.16-1             later_1.3.2                
+[177] viridisLite_0.4.2           tibble_3.2.1               
+[179] memoise_2.0.1               beeswarm_0.4.0             
+[181] GenomicAlignments_1.38.0    cluster_2.1.5              
+[183] globals_0.16.2             </code></pre>
+</div>
+</div>
+</details>
+<details>
+<summary>
+<strong>Resources</strong>
+</summary>
+<p><img src="resources/resources.png" class="img-fluid"></p>
+</details>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
