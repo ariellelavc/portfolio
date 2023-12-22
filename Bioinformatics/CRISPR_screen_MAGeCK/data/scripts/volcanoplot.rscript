@@ -1,0 +1,103 @@
+# Load packages -----------------------------------------------------------
+
+suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(ggrepel)
+    library(optparse)    
+})
+
+# Fetch arguments  --------------------------------------------------------
+
+option_list = list(
+  make_option(c("-i", "--input"), action="store", default=NA, type='character',
+              help="input gene summary file"),
+  make_option(c("-a", "--fdr_col"), action="store", default=NA, type='integer',
+              help="FDR (adjusted p-value) column number"),
+  make_option(c("-p", "--pval_col"), action="store", default=NA, type='integer',
+              help="pvalue column number"),
+  make_option(c("-f", "--lfc_col"), action="store", default=NA, type='integer',
+              help="logfc column number"),   
+  make_option(c("-l", "--label_col"), action="store", default=NA, type='integer',
+              help="labels column number"),  
+  make_option(c("-s", "--signif_thresh"), action="store", default=NA, type='double',
+              help="significance threshold"),
+  make_option(c("-c", "--lfc_thresh"), action="store", default=NA, type='double',
+              help="log fold change threshold"),
+  make_option(c("-t", "--topn"), action="store", default=NA, type='integer',
+              help="number of top most significant genes to label")       
+)
+opt = parse_args(OptionParser(option_list=option_list))
+
+# Read input  -------------------------------------------------------------
+
+results <- read.delim(opt$input, header = TRUE)
+
+# Format data  ------------------------------------------------------------
+
+# Create columns from the column numbers specified
+results <- results %>% mutate(fdr = .[[opt$fdr_col]],
+                              pvalue = .[[opt$pval_col]],
+                              logfc = .[[opt$lfc_col]],
+                              labels = .[[opt$label_col]])
+
+# Get names for legend
+down <- unlist(strsplit('Down,Not Sig,Up', split = ","))[1]
+notsig <- unlist(strsplit('Down,Not Sig,Up', split = ","))[2]
+up <- unlist(strsplit('Down,Not Sig,Up', split = ","))[3]
+
+# Set colours
+colours <- setNames(c("cornflowerblue", "grey", "firebrick"), c(down, notsig, up))
+
+# Create significant (sig) column
+results <- mutate(results, sig = case_when(
+                                fdr < opt$signif_thresh & logfc > opt$lfc_thresh ~ up,
+                                fdr < opt$signif_thresh & logfc < -opt$lfc_thresh ~ down,
+                                TRUE ~ notsig))
+
+
+# Specify genes to label --------------------------------------------------
+
+# Get top genes by P value
+top <- slice_min(results, order_by = pvalue, n = opt$topn)
+
+# Extract into vector
+toplabels <- pull(top, labels)
+
+# Label just the top genes in results table
+results <- mutate(results, labels = ifelse(labels %in% toplabels, labels, ""))
+
+
+# Create plot -------------------------------------------------------------
+
+# Open file to save plot as PDF
+pdf("volcano_plot.pdf")
+
+# Set up base plot
+p <- ggplot(data = results, aes(x = logfc, y = -log10(pvalue))) +
+    geom_point(aes(colour = sig)) +
+    scale_color_manual(values = colours) +
+    theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.key = element_blank())
+
+# Add gene labels
+p <- p + geom_text_repel(data = filter(results, labels != ""), aes(label = labels),
+                         min.segment.length = 0,
+                         max.overlaps = Inf,
+                         show.legend = FALSE)
+
+# Set legend title
+p <- p + theme(legend.title = element_blank())
+
+# Print plot
+print(p)
+
+# Close PDF graphics device
+dev.off()
+
+print("Create volcano_plot.pdf....... DONE.")
+
+

@@ -1,0 +1,4 @@
+File	Label	Reads	Mapped	Percentage	TotalsgRNAs	Zerocounts	GiniIndex	NegSelQC	NegSelQCPval	NegSelQCPvalPermutation	NegSelQCPvalPermutationFDR	NegSelQCGene
+T8-APR-246.fq.gz	T8-APR-246	18165059	14665554	0.8073	77441	2102	0.1362	0	1	1	1	0.0
+T8-Vehicle.fq.gz	T8-Vehicle	17855968	15019692	0.8412	77441	1659	0.1275	0	1	1	1	0.0
+T0-Control.fq.gz	T0-Control	20646404	17272052	0.8366	77441	535	0.09077	0	1	1	1	0.0

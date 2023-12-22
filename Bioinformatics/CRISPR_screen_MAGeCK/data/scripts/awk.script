@@ -1,0 +1,14 @@
+# Print new header for first line
+NR == 1 { print "gene", "pval", "fdr", "lfc" }
+
+# Only process lines after first
+NR > 1 {
+    # check if neg pval (column 4) is less than pos pval (column 10)
+    if ($4 < $10){
+       # if it is, print negative selection values
+        print $1, $4, $5, $8
+    } else {
+       # if it's not, print positive selection values
+        print $1, $10, $11, $14
+    }
+}
