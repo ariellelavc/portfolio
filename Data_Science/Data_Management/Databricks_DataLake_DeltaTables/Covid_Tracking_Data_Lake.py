@@ -41,6 +41,7 @@ display(spark.sql('SELECT * FROM dl_source LIMIT 10'))
 # MAGIC DROP DATABASE IF EXISTS covid_tracking_dashboard CASCADE;
 # MAGIC CREATE DATABASE IF NOT EXISTS covid_tracking_dashboard;
 # MAGIC USE covid_tracking_dashboard;
+# MAGIC
 
 # COMMAND ----------
 
@@ -89,3 +90,37 @@ display(spark.sql("desc detail covid_tracking_dashboard.covid_tracking"))
 # COMMAND ----------
 
 # MAGIC %fs ls dbfs:/mnt/delta/covid_tracking/
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC SELECT sum(hospitalized) as hospitalized, state FROM covid_tracking GROUP BY state;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC SELECT sum(hospitalized) as hospitalized, state, date_format(date, 'yyyy-MM') as period
+# MAGIC FROM covid_tracking
+# MAGIC WHERE hospitalized is not null 
+# MAGIC GROUP BY period, state
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC SELECT sum(hospitalized) as hospitalized, sum(death) as deaths, sum(positive) as positives, date_format(date, 'yyyy-MM') as period
+# MAGIC FROM covid_tracking 
+# MAGIC WHERE state = 'WA'
+# MAGIC GROUP BY period
+# MAGIC ORDER BY period ASC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC SELECT sum(hospitalized) as hospitalized, sum(death) as deaths, sum(positive) as positives, state
+# MAGIC FROM covid_tracking 
+# MAGIC WHERE state in ('WA', 'FL', 'WI', 'AR')
+# MAGIC GROUP BY state
