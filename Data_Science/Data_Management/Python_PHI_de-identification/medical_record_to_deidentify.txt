@@ -1,0 +1,37 @@
+Patient Information
+Name: Robert Johnson
+Date of Birth: 01/10/1970
+SSN: 319-67-9865
+Address: 500 Mercer St, Seattle, WA 98109
+Contact Number: 206-602-2662
+Email: rjohnson@gmail.com
+Employer: Seattle Center 
+Primary Care Physician: Dr. Linda Smith
+
+Medical History
+Past Medical History: None
+Family Medical History: Father with prostate cancer, mother with breast cancer
+Allergies: Penicillin
+Medications: Lisinopril, Atorvastatin, Aspirin
+
+Leukemia Diagnosis
+Date of Diagnosis: 01/01/2023
+Type of Leukemia: Acute Lymphoblastic Leukemia (ALL)
+Symptoms at Diagnosis: Fatigue, bruising, bleeding, fever
+Diagnostic Tests: Complete blood count (CBC), bone marrow aspiration and biopsy, cytogenetics, flow cytometry
+
+Treatment Plan
+Chemotherapy: Hyper-CVAD regimen
+Radiation Therapy: None
+Stem Cell Transplant: Not indicated at this time
+Maintenance Therapy: Oral chemotherapy (6-mercaptopurine and methotrexate) and corticosteroids (dexamethasone)
+
+Treatment Response
+Remission Status: In remission since 03/01/2023
+Adverse Effects: Nausea, vomiting, hair loss, neutropenia
+
+Follow-up
+Last Follow-up: 06/01/2024
+Next Follow-up: 09/01/2024
+Imaging Studies: None
+Laboratory Tests: Complete blood count (CBC), comprehensive metabolic panel (CMP)
