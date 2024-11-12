@@ -1,18 +1,14 @@
 -- Databricks notebook source
 -- MAGIC %md
--- MAGIC ## Delta Live Tables (SQL)
-
--- COMMAND ----------
-
--- MAGIC %md
--- MAGIC Ingest raw data into a bronze (raw) table
+-- MAGIC Ingest data into bronze (raw) table
 
 -- COMMAND ----------
 
 CREATE OR REFRESH LIVE TABLE dlt_sql_bronze
 COMMENT "Data ingested from NY State Department of Health"
-AS SELECT Year, 'First Name' AS First_Name, County, Sex, Count FROM read_files(
-  '/Volumes/main/default/unity-volume/rows.csv',
+AS SELECT Year, `First Name` AS First_Name, County, Sex, Count 
+FROM read_files(
+  '/Volumes/main/default/unity_volume/rows.csv',
   format => 'csv',
   header => true,
   mode => 'FAILFAST'
@@ -51,5 +47,4 @@ SUM(Count) AS Total_Count
 FROM live.dlt_sql_silver
 WHERE Year_Of_Birth = 2021
 GROUP BY First_Name
-ORDER BY Total_Count DESC
-LIMIT 10;
+ORDER BY Total_Count DESC;

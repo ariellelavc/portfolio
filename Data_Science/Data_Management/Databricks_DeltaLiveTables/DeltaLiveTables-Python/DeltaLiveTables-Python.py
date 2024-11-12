@@ -1,10 +1,5 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC ## Delta Live Tables (Python)
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC Imports
 
 # COMMAND ----------
@@ -19,9 +14,16 @@ from pyspark.sql.functions import *
 
 # COMMAND ----------
 
+catalog = 'main'
+databaseName = 'default'
+volumeName = 'unity_volume'
+spark.sql("CREATE VOLUME " + catalog + "." + databaseName + "." + volumeName)
+
+# COMMAND ----------
+
 import os
 
-os.environ["UNITY_CATALOG_VOLUME_PATH"] = "/Volumes/main/default/unity-volume/"
+os.environ["UNITY_CATALOG_VOLUME_PATH"] = "/Volumes/main/default/unity_volume/"
 os.environ["DATASET_DOWNLOAD_URL"] = "https://health.data.ny.gov/api/views/jxy9-yhdk/rows.csv"
 os.environ["DATASET_DOWNLOAD_FILENAME"] = "rows.csv"
 
@@ -52,7 +54,7 @@ def dlt_bronze():
 @dlt.table(
   comment="Data cleaned and prepared for analysis"
 )
-@dlt.expect("valid_first_name", "First_Nmae IS NOT NULL")
+@dlt.expect("valid_first_name", "First_Name IS NOT NULL")
 @dlt.expect_or_fail("valid_count", "Count > 0")
 def dlt_silver():
   return (
