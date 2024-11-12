@@ -80,5 +80,4 @@ def dlt_gold():
       .groupBy("First_Name")
       .agg(sum("Count").alias("Total_Count"))
       .sort(desc("Total_Count"))
-      .limit(10)
   )
